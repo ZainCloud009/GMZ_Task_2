@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System Health Dashboard</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    body {
+      background: #0f172a;
+      color: #f8fafc;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 16px;
+      padding: 32px;
+      max-width: 550px;
+      width: 100%;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #334155;
+    }
+    .title {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #38bdf8;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #064e3b;
+      color: #34d399;
+      padding: 6px 12px;
+      border-radius: 9999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background: #34d399;
+      border-radius: 50%;
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.2); }
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .stat-box {
+      background: #0f172a;
+      padding: 16px;
+      border-radius: 10px;
+      border: 1px solid #334155;
+    }
+    .stat-label {
+      font-size: 0.75rem;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 4px;
+    }
+    .stat-value {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #f1f5f9;
+    }
+    .btn {
+      width: 100%;
+      background: #0284c7;
+      color: #ffffff;
+      border: none;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn:hover {
+      background: #0369a1;
+    }
+    .footer {
+      margin-top: 16px;
+      font-size: 0.75rem;
+      color: #64748b;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <div class="title">Node.js Health Status</div>
+      <div class="badge" id="badge">
+        <span class="pulse-dot"></span>
+        <span id="status-text">Checking...</span>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="stat-box">
+        <div class="stat-label">Platform</div>
+        <div class="stat-value" id="platform">-</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Server Uptime</div>
+        <div class="stat-value" id="uptime">-</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Available Memory</div>
+        <div class="stat-value" id="memory">-</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">CPU Cores</div>
+        <div class="stat-value" id="cpus">-</div>
+      </div>
+    </div>
+
+    <button class="btn" onclick="fetchHealth()">Refresh Health Status</button>
+    <div class="footer" id="last-updated">Last updated: Just now</div>
+  </div>
+
+  <script>
+    async function fetchHealth() {
+      try {
+        const res = await fetch('/health');
+        const data = await res.json();
+        
+        document.getElementById('status-text').textContent = data.status === 'UP' ? 'ONLINE' : 'DEGRADED';
+        document.getElementById('platform').textContent = data.system.platform;
+        document.getElementById('uptime').textContent = data.uptime;
+        document.getElementById('memory').textContent = data.system.freeMemory;
+        document.getElementById('cpus').textContent = data.system.cpus + ' Cores';
+        document.getElementById('last-updated').textContent = 'Last updated: ' + new Date().toLocaleTimeString();
+      } catch (err) {
+        document.getElementById('status-text').textContent = 'OFFLINE';
+        document.getElementById('badge').style.background = '#7f1d1d';
+        document.getElementById('badge').style.color = '#f87171';
+      }
+    }
+
+    // Auto-fetch on load and every 5 seconds
+    fetchHealth();
+    setInterval(fetchHealth, 5000);
+  </script>
+</body>
+</html>

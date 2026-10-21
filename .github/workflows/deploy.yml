@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Deploy to /var/www/html
+      - name: Deploy Repo to /var/www/html/GMZ_Task_2
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -17,9 +17,26 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: 22
           script: |
-            if [ ! -d "/var/www/html/.git" ]; then
-              git clone https://github.com/ZainCloud009/GMZ_Task_2.git /var/www/html
+            # 1. Agar server par git install nahi hai to install karein
+            if ! command -v git &> /dev/null; then
+              sudo apt-get update -y && sudo apt-get install -y git
+            fi
+
+            # 2. /var/www/html directory aur permissions ensure karein
+            sudo mkdir -p /var/www/html
+            sudo chown -R $USER:$USER /var/www/html
+
+            # 3. Pehli dafa Repo clone karein (/var/www/html/ ke andar GMZ_Task_2 folder banega)
+            cd /var/www/html
+            if [ ! -d "/var/www/html/GMZ_Task_2/.git" ]; then
+              git clone https://github.com/ZainCloud009/GMZ_Task_2.git
             else
-              cd /var/www/html
+              cd /var/www/html/GMZ_Task_2
               git pull origin main
+            fi
+
+            # 4. Agar Node/npm mojood hai to dependencies install karein
+            cd /var/www/html/GMZ_Task_2
+            if command -v npm &> /dev/null; then
+              npm install --omit=dev
             fi
