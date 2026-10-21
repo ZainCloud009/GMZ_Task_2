@@ -1,15 +1,42 @@
-name: Deploy to Server with Docker
+name: Build, Push to Docker Hub and Deploy
 
 on:
   push:
     branches: [ "main" ]
 
 jobs:
-  deploy:
+  # ==========================================
+  # JOB 1: Docker Image Build & Push to Docker Hub
+  # ==========================================
+  build-and-push:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Deploy Docker Container to Server
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/gmz-health-app:latest
+
+  # ==========================================
+  # JOB 2: Server Par Pull aur Container Run
+  # ==========================================
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Pull Image from Docker Hub and Run Container
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -17,7 +44,7 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: 22
           script: |
-            # 1. Docker check aur install karein (Amazon Linux 2023)
+            # 1. Docker check aur start karein (Amazon Linux 2023)
             if ! command -v docker &> /dev/null; then
               if command -v dnf &> /dev/null; then
                 sudo dnf install -y docker
@@ -27,32 +54,24 @@ jobs:
               sudo systemctl start docker
               sudo systemctl enable docker
             fi
-
             sudo systemctl start docker
 
-            # 2. Agar pehle se PM2 port 3000 use kar raha tha to usay free karein
+            # 2. Port 3000 free karein (agar PM2 chal raha ho)
             command -v pm2 &> /dev/null && pm2 delete health-app 2>/dev/null || true
 
-            # 3. /var/www/html directory aur latest code pull karein
-            sudo mkdir -p /var/www/html
-            sudo chown -R $USER:$USER /var/www/html
+            # 3. Docker Hub se latest image pull karein
+            sudo docker pull ${{ secrets.DOCKER_USERNAME }}/gmz-health-app:latest
 
-            cd /var/www/html
-            if [ ! -d "/var/www/html/GMZ_Task_2/.git" ]; then
-              git clone https://github.com/ZainCloud009/GMZ_Task_2.git
-            else
-              cd /var/www/html/GMZ_Task_2
-              git pull origin main
-            fi
-
-            # 4. Docker Image build karein
-            cd /var/www/html/GMZ_Task_2
-            sudo docker build -t gmz-health-app:latest .
-
-            # 5. Purana container stop & remove kar ke naya run karein
+            # 4. Purana container stop aur remove karein
             sudo docker stop gmz-health-app 2>/dev/null || true
             sudo docker rm gmz-health-app 2>/dev/null || true
-            sudo docker run -d --name gmz-health-app --restart always -p 3000:3000 gmz-health-app:latest
 
-            # 6. Unused images clean karein (taake disk full na ho)
+            # 5. Docker Hub wali naye image se container run karein
+            sudo docker run -d \
+              --name gmz-health-app \
+              --restart always \
+              -p 3000:3000 \
+              ${{ secrets.DOCKER_USERNAME }}/gmz-health-app:latest
+
+            # 6. Purani bekaar images delete karein
             sudo docker image prune -f
