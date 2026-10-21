@@ -14,6 +14,6 @@ do
         2) df -h ;;
         3) uptime ;;
         0) exit ;;
-        *) echo "Invalid option" ;;
+        *) echo "Invalid options" ;;
     esac
 done
