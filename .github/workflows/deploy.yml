@@ -1,4 +1,4 @@
-name: Deploy to Server
+name: Deploy to Server with Docker
 
 on:
   push:
@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Deploy Repo to /var/www/html/GMZ_Task_2
+      - name: Deploy Docker Container to Server
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -17,31 +17,26 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: 22
           script: |
-            # 1. Package manager detect karein (Amazon Linux 2023 uses dnf)
-            if command -v dnf &> /dev/null; then
-              PKG_INSTALL="sudo dnf install -y"
-            else
-              PKG_INSTALL="sudo apt-get install -y"
+            # 1. Docker check aur install karein (Amazon Linux 2023)
+            if ! command -v docker &> /dev/null; then
+              if command -v dnf &> /dev/null; then
+                sudo dnf install -y docker
+              else
+                sudo apt-get update -y && sudo apt-get install -y docker.io
+              fi
+              sudo systemctl start docker
+              sudo systemctl enable docker
             fi
 
-            # 2. Git, Node.js aur PM2 install karein agar nahi hain
-            if ! command -v git &> /dev/null; then
-              $PKG_INSTALL git
-            fi
+            sudo systemctl start docker
 
-            if ! command -v node &> /dev/null; then
-              $PKG_INSTALL nodejs
-            fi
+            # 2. Agar pehle se PM2 port 3000 use kar raha tha to usay free karein
+            command -v pm2 &> /dev/null && pm2 delete health-app 2>/dev/null || true
 
-            if ! command -v pm2 &> /dev/null; then
-              sudo npm install -g pm2
-            fi
-
-            # 3. Directory aur permissions
+            # 3. /var/www/html directory aur latest code pull karein
             sudo mkdir -p /var/www/html
             sudo chown -R $USER:$USER /var/www/html
 
-            # 4. Clone ya Pull
             cd /var/www/html
             if [ ! -d "/var/www/html/GMZ_Task_2/.git" ]; then
               git clone https://github.com/ZainCloud009/GMZ_Task_2.git
@@ -50,8 +45,14 @@ jobs:
               git pull origin main
             fi
 
-            # 5. Dependencies install aur PM2 restart
+            # 4. Docker Image build karein
             cd /var/www/html/GMZ_Task_2
-            npm install --omit=dev
-            pm2 restart health-app 2>/dev/null || pm2 start server.js --name health-app
-            pm2 save
+            sudo docker build -t gmz-health-app:latest .
+
+            # 5. Purana container stop & remove kar ke naya run karein
+            sudo docker stop gmz-health-app 2>/dev/null || true
+            sudo docker rm gmz-health-app 2>/dev/null || true
+            sudo docker run -d --name gmz-health-app --restart always -p 3000:3000 gmz-health-app:latest
+
+            # 6. Unused images clean karein (taake disk full na ho)
+            sudo docker image prune -f
