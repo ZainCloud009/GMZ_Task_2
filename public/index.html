@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Systems Health Dashboard</title>
+  <title>System Health Dashboard</title>
   <style>
     * {
       box-sizing: border-box;
@@ -88,6 +88,18 @@
       font-weight: 600;
       color: #f1f5f9;
     }
+    .stat-highlight {
+      grid-column: span 2;
+      border-color: #0284c7;
+      background: linear-gradient(145deg, #0f172a 0%, #1e293b 100%);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .stat-highlight .stat-value {
+      color: #38bdf8;
+      font-size: 1.5rem;
+    }
     .btn {
       width: 100%;
       background: #0284c7;
@@ -122,12 +134,19 @@
     </div>
 
     <div class="grid">
+      <div class="stat-box stat-highlight">
+        <div>
+          <div class="stat-label">Live CPU Usage</div>
+          <div style="font-size: 0.75rem; color: #64748b;">Real-time load</div>
+        </div>
+        <div class="stat-value" id="cpu-usage">-</div>
+      </div>
       <div class="stat-box">
         <div class="stat-label">Platform</div>
         <div class="stat-value" id="platform">-</div>
       </div>
       <div class="stat-box">
-        <div class="stat-label">Server UPTime</div>
+        <div class="stat-label">Server Uptime</div>
         <div class="stat-value" id="uptime">-</div>
       </div>
       <div class="stat-box">
@@ -151,6 +170,7 @@
         const data = await res.json();
         
         document.getElementById('status-text').textContent = data.status === 'UP' ? 'ONLINE' : 'DEGRADED';
+        document.getElementById('cpu-usage').textContent = data.system.cpuUsage || '0.0%';
         document.getElementById('platform').textContent = data.system.platform;
         document.getElementById('uptime').textContent = data.uptime;
         document.getElementById('memory').textContent = data.system.freeMemory;
