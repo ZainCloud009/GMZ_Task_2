@@ -22,7 +22,7 @@ function getCpuTimes() {
   return { idle, total };
 }
 
-// Helper function to measure live CPU usage over a short 100ms sample
+// Helper function to measure live CPU usage with 2 decimal points precision
 function getCpuUsage() {
   return new Promise((resolve) => {
     const start = getCpuTimes();
@@ -30,15 +30,20 @@ function getCpuUsage() {
       const end = getCpuTimes();
       const idleDiff = end.idle - start.idle;
       const totalDiff = end.total - start.total;
-      const percentage = totalDiff > 0 ? (100 - (idleDiff / totalDiff) * 100).toFixed(1) : '0.0';
-      resolve(`${Math.max(0, Math.min(100, percentage))}%`);
-    }, 100);
+      const raw = totalDiff > 0 ? (100 - (idleDiff / totalDiff) * 100) : 0;
+      const numeric = Math.max(0, Math.min(100, parseFloat(raw.toFixed(2))));
+      resolve({
+        percentage: `${numeric.toFixed(2)}%`,
+        points: numeric
+      });
+    }, 150);
   });
 }
 
 // Health check endpoint
 app.get('/health', async (req, res) => {
-  const cpuUsage = await getCpuUsage();
+  const cpu = await getCpuUsage();
+  const load = os.loadavg();
 
   res.status(200).json({
     status: 'UP',
@@ -48,7 +53,13 @@ app.get('/health', async (req, res) => {
     system: {
       platform: os.platform(),
       cpus: os.cpus().length,
-      cpuUsage: cpuUsage,
+      cpuUsage: cpu.percentage,         // e.g. "0.52%"
+      cpuUsagePoints: cpu.points,       // e.g. 0.52 (decimal points me)
+      loadAverage: {
+        "1m": parseFloat(load[0].toFixed(2)),   // 1-minute load average (points me)
+        "5m": parseFloat(load[1].toFixed(2)),   // 5-minute load average
+        "15m": parseFloat(load[2].toFixed(2))   // 15-minute load average
+      },
       freeMemory: `${(os.freemem() / (1024 * 1024)).toFixed(2)} MB`,
       totalMemory: `${(os.totalmem() / (1024 * 1024)).toFixed(2)} MB`
     }

@@ -98,7 +98,12 @@
     }
     .stat-highlight .stat-value {
       color: #38bdf8;
-      font-size: 1.5rem;
+      font-size: 1.4rem;
+    }
+    .sub-points {
+      font-size: 0.8rem;
+      color: #38bdf8;
+      margin-top: 4px;
     }
     .btn {
       width: 100%;
@@ -137,9 +142,14 @@
       <div class="stat-box stat-highlight">
         <div>
           <div class="stat-label">Live CPU Usage</div>
-          <div style="font-size: 0.75rem; color: #64748b;">Real-time load</div>
+          <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 2px;">
+            Load Avg (1m, 5m): <span id="cpu-load" style="color: #cbd5e1;">-</span>
+          </div>
         </div>
-        <div class="stat-value" id="cpu-usage">-</div>
+        <div style="text-align: right;">
+          <div class="stat-value" id="cpu-usage">-</div>
+          <div class="sub-points" id="cpu-points">Points: -</div>
+        </div>
       </div>
       <div class="stat-box">
         <div class="stat-label">Platform</div>
@@ -170,7 +180,12 @@
         const data = await res.json();
         
         document.getElementById('status-text').textContent = data.status === 'UP' ? 'ONLINE' : 'DEGRADED';
-        document.getElementById('cpu-usage').textContent = data.system.cpuUsage || '0.0%';
+        document.getElementById('cpu-usage').textContent = data.system.cpuUsage || '0.00%';
+        document.getElementById('cpu-points').textContent = 'Points: ' + (data.system.cpuUsagePoints !== undefined ? data.system.cpuUsagePoints : '-');
+        
+        const load = data.system.loadAverage ? (data.system.loadAverage['1m'] + ', ' + data.system.loadAverage['5m']) : '-';
+        document.getElementById('cpu-load').textContent = load;
+
         document.getElementById('platform').textContent = data.system.platform;
         document.getElementById('uptime').textContent = data.uptime;
         document.getElementById('memory').textContent = data.system.freeMemory;
