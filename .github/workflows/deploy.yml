@@ -44,30 +44,41 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: 22
           script: |
-            # 1. Purana standalone Docker container band karein (port 3000 free karne ke liye)
+            # 1. 2GB Swap Memory add karein (1GB RAM EC2 ko freeze hone se bachane ke liye)
+            if [ ! -f /swapfile ]; then
+              echo "Creating 2GB swap space for stability..."
+              sudo dd if=/dev/zero of=/swapfile bs=128M count=16
+              sudo chmod 600 /swapfile
+              sudo mkswap /swapfile
+              sudo swapon /swapfile
+              echo '/swapfile swap swap defaults 0 0' | sudo tee -a /etc/fstab
+            fi
+
+            # 2. Standalone Docker container stop karein (port 3000 free karne ke liye)
             sudo docker stop gmz-health-app 2>/dev/null || true
             sudo docker rm gmz-health-app 2>/dev/null || true
 
-            # 2. Check karein agar Kubernetes (K3s) install nahi hai to install karein
-            if ! command -v k3s &> /dev/null && ! command -v kubectl &> /dev/null; then
-              echo "Installing lightweight certified Kubernetes (K3s)..."
-              curl -sfL https://get.k3s.io | sh -
-              sudo chmod 644 /etc/rancher/k3s/k3s.yaml
+            # 3. K3s install / ensure running (Traefik disable taake Apache ke sath conflict na ho aur RAM bache)
+            if ! command -v k3s &> /dev/null; then
+              echo "Installing lightweight K3s..."
+              curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik --disable=servicelb" sh -
             fi
 
+            sudo systemctl restart k3s
+            sudo chmod 644 /etc/rancher/k3s/k3s.yaml
             export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 
-            # K3s node ko ready hone ka wait karein
-            sudo kubectl wait --for=condition=Ready node --all --timeout=60s 2>/dev/null || sleep 10
+            # Kubernetes API Server ka wait karein
+            echo "Waiting for Kubernetes API Server..."
+            for i in {1..30}; do
+              if sudo kubectl get nodes &>/dev/null; then
+                echo "Kubernetes API Server is Ready!"
+                break
+              fi
+              sleep 2
+            done
 
-            # 3. Docker Hub credentials ka secret banayein (taake ImagePull error na aaye)
-            sudo kubectl create secret docker-registry dockerhub-secret \
-              --docker-server=https://index.docker.io/v1/ \
-              --docker-username="${{ secrets.DOCKER_USERNAME }}" \
-              --docker-password="${{ secrets.DOCKER_PASSWORD }}" \
-              --dry-run=client -o yaml | sudo kubectl apply -f -
-
-            # 4. Latest code pull karein (k8s manifests ke liye)
+            # 4. Clean Git Pull (Purani local changes discard karein taake merge conflict na aaye)
             sudo mkdir -p /var/www/html
             sudo chown -R $USER:$USER /var/www/html
             cd /var/www/html
@@ -75,22 +86,23 @@ jobs:
               git clone https://github.com/ZainCloud009/GMZ_Task_2.git
             else
               cd /var/www/html/GMZ_Task_2
+              git reset --hard HEAD
               git pull origin main
             fi
 
             cd /var/www/html/GMZ_Task_2
 
-            # 5. deployment.yaml me Docker Hub image name set karein
+            # 5. Docker Hub credentials ka secret banayein
+            sudo kubectl create secret docker-registry dockerhub-secret \
+              --docker-server=https://index.docker.io/v1/ \
+              --docker-username="${{ secrets.DOCKER_USERNAME }}" \
+              --docker-password="${{ secrets.DOCKER_PASSWORD }}" \
+              --dry-run=client -o yaml | sudo kubectl apply -f -
+
+            # 6. deployment.yaml me Docker Hub image name set karein
             sed -i "s|DOCKER_IMAGE_PLACEHOLDER|${{ secrets.DOCKER_USERNAME }}/gmz-health-app:latest|g" k8s/deployment.yaml
 
-            # 6. Kubernetes resources apply karein
+            # 7. Kubernetes resources apply & rollout karein
             sudo kubectl apply -f k8s/
-
-            # 7. Nayi image ke sath rolling update karein (Timeout 180s rakha hai taake image download ho sake)
             sudo kubectl rollout restart deployment/gmz-health-app
-            if ! sudo kubectl rollout status deployment/gmz-health-app --timeout=180s; then
-              echo "=== Rollout timed out, showing Pod Status ==="
-              sudo kubectl get pods -o wide
-              sudo kubectl describe pods
-              exit 1
-            fi
+            sudo kubectl rollout status deployment/gmz-health-app --timeout=120s
