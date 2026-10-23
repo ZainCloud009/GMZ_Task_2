@@ -46,19 +46,19 @@ jobs:
           timeout: 60s
           command_timeout: 10m
           script: |
-            # 1. Purani RAM cache release karein
-            echo 3 | sudo tee /proc/sys/vm/drop_caches 2>/dev/null || true
+            # 1. Apache (httpd) ensure running
+            sudo systemctl start httpd 2>/dev/null || true
+            sudo systemctl enable httpd 2>/dev/null || true
 
             # 2. Standalone Docker container stop karein (port 3000 aur RAM free karne ke liye)
             sudo docker stop gmz-health-app 2>/dev/null || true
             sudo docker rm gmz-health-app 2>/dev/null || true
 
-            # 3. Safe Swap Memory Setup (fallocate use karein - 0 RAM buffer)
-            if [ $(free -m | awk '/Swap:/ {print $2}') -lt 1000 ]; then
-              echo "Configuring 2GB swap space safely without RAM buffer..."
+            # 3. Swap memory check (t3.small par 2GB RAM hai, safety ke liye 1GB swap)
+            if [ $(free -m | awk '/Swap:/ {print $2}') -lt 500 ]; then
               sudo swapoff /swapfile 2>/dev/null || true
               sudo rm -f /swapfile
-              if ! sudo fallocate -l 2G /swapfile 2>/dev/null; then
+              if ! sudo fallocate -l 1G /swapfile 2>/dev/null; then
                 sudo dd if=/dev/zero of=/swapfile bs=1M count=1024 status=none
               fi
               sudo chmod 600 /swapfile
@@ -83,11 +83,11 @@ jobs:
 
             # K3s install if missing
             if ! command -v k3s &> /dev/null; then
-              echo "Installing lightweight K3s..."
+              echo "Installing lightweight K3s on t3.small..."
               curl -sfL https://get.k3s.io | sh -
             fi
 
-            # Restart K3s to apply ultra-lightweight config
+            # Service ensure running
             sudo systemctl restart k3s
             sudo chmod 644 /etc/rancher/k3s/k3s.yaml 2>/dev/null || true
 
@@ -102,7 +102,7 @@ jobs:
             API_READY=false
             for i in {1..30}; do
               if curl -k -s --connect-timeout 2 --max-time 3 https://127.0.0.1:6443/readyz 2>/dev/null | grep -q "ok"; then
-                echo "Kubernetes API Server is 100% READY!"
+                echo "Kubernetes API Server is 100% READY on t3.small!"
                 API_READY=true
                 break
               fi
