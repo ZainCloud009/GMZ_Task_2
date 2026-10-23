@@ -43,15 +43,18 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: 22
+          timeout: 60s
+          command_timeout: 10m
           script: |
-            # 1. 2GB Swap Memory ensure karein (1GB RAM freeze se bachane ke liye)
-            if [ ! -f /swapfile ]; then
-              echo "Creating 2GB swap space..."
+            # 1. 2GB Swap Memory ensure karein (1GB RAM crash se bachane ke liye)
+            if [ ! -f /swapfile ] || [ $(stat -c%s /swapfile 2>/dev/null || echo 0) -lt 1000000000 ]; then
+              echo "Setting up 2GB swap space..."
+              sudo swapoff /swapfile 2>/dev/null || true
               sudo dd if=/dev/zero of=/swapfile bs=128M count=16
               sudo chmod 600 /swapfile
               sudo mkswap /swapfile
               sudo swapon /swapfile
-              echo '/swapfile swap swap defaults 0 0' | sudo tee -a /etc/fstab
+              grep -q "/swapfile" /etc/fstab || echo '/swapfile swap swap defaults 0 0' | sudo tee -a /etc/fstab
             fi
             sudo swapon /swapfile 2>/dev/null || true
 
@@ -59,31 +62,48 @@ jobs:
             sudo docker stop gmz-health-app 2>/dev/null || true
             sudo docker rm gmz-health-app 2>/dev/null || true
 
-            # 3. K3s install check (Agar installed nahi hai to install karein)
+            # 3. Amazon Linux 2023 SELinux permission fix
+            sudo setenforce 0 2>/dev/null || true
+
+            # 4. K3s install / setup with 644 permissions and no traefik
             if ! command -v k3s &> /dev/null; then
               echo "Installing lightweight K3s..."
-              curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=traefik --disable=servicelb" sh -
+              curl -sfL https://get.k3s.io | sh -s - --disable=traefik --disable=servicelb --write-kubeconfig-mode 644
             fi
 
-            # Sirf tab start karein agar K3s inactive ho (har dafa restart karne se cluster freeze hota hai)
-            if ! sudo systemctl is-active --quiet k3s; then
-              sudo systemctl start k3s
-            fi
-
+            # Service ensure running
+            sudo systemctl restart k3s
             sudo chmod 644 /etc/rancher/k3s/k3s.yaml 2>/dev/null || true
+
+            # Kubeconfig setup (root aur ec2-user dono ke liye)
+            mkdir -p $HOME/.kube
+            sudo mkdir -p /root/.kube
+            sudo cp /etc/rancher/k3s/k3s.yaml $HOME/.kube/config 2>/dev/null || true
+            sudo cp /etc/rancher/k3s/k3s.yaml /root/.kube/config 2>/dev/null || true
+            sudo chown -R $USER:$USER $HOME/.kube 2>/dev/null || true
             export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 
-            # 4. K3s API Server ke 100% ready hone ka intezar karein
+            # 5. Fast curl check for Kubernetes API Server (Never hangs)
             echo "Waiting for Kubernetes API Server (/readyz)..."
+            API_READY=false
             for i in {1..30}; do
-              if sudo kubectl get --raw /readyz &>/dev/null; then
-                echo "Kubernetes API Server is Ready!"
+              if curl -k -s --connect-timeout 2 --max-time 3 https://127.0.0.1:6443/readyz 2>/dev/null | grep -q "ok"; then
+                echo "Kubernetes API Server is 100% READY!"
+                API_READY=true
                 break
               fi
-              sleep 2
+              echo "Waiting for API server to initialize ($i/30)..."
+              sleep 3
             done
 
-            # 5. Clean Git Pull
+            if [ "$API_READY" != "true" ]; then
+              echo "=== K3s Status & Error Logs ==="
+              sudo systemctl status k3s --no-pager
+              sudo journalctl -u k3s -n 30 --no-pager
+              exit 1
+            fi
+
+            # 6. Clean Git Pull
             sudo mkdir -p /var/www/html
             sudo chown -R $USER:$USER /var/www/html
             cd /var/www/html
@@ -97,24 +117,24 @@ jobs:
 
             cd /var/www/html/GMZ_Task_2
 
-            # 6. Docker Hub credentials ka secret banayein
-            sudo kubectl create secret docker-registry dockerhub-secret \
+            # 7. Docker Hub credentials ka secret banayein
+            kubectl create secret docker-registry dockerhub-secret \
               --docker-server=https://index.docker.io/v1/ \
               --docker-username="${{ secrets.DOCKER_USERNAME }}" \
               --docker-password="${{ secrets.DOCKER_PASSWORD }}" \
-              --dry-run=client -o yaml | sudo kubectl apply -f -
+              --dry-run=client -o yaml | kubectl apply -f -
 
-            # 7. deployment.yaml me Docker Hub image name set karein
+            # 8. deployment.yaml me Docker Hub image name set karein
             sed -i "s|DOCKER_IMAGE_PLACEHOLDER|${{ secrets.DOCKER_USERNAME }}/gmz-health-app:latest|g" k8s/deployment.yaml
 
-            # 8. Kubernetes apply without validation timeout (--validate=false)
-            sudo kubectl apply --validate=false -f k8s/
+            # 9. Kubernetes apply without validation timeout
+            kubectl apply --validate=false -f k8s/
 
-            # 9. Rolling update & status check
-            sudo kubectl rollout restart deployment/gmz-health-app
-            if ! sudo kubectl rollout status deployment/gmz-health-app --timeout=120s; then
+            # 10. Rolling update & status check
+            kubectl rollout restart deployment/gmz-health-app
+            if ! kubectl rollout status deployment/gmz-health-app --timeout=120s; then
               echo "=== Pods Status ==="
-              sudo kubectl get pods -o wide
-              sudo kubectl describe pods
+              kubectl get pods -o wide
+              kubectl describe pods
               exit 1
             fi
