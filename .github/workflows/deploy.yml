@@ -57,7 +57,17 @@ jobs:
 
             export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 
-            # 3. Latest code pull karein (k8s manifests ke liye)
+            # K3s node ko ready hone ka wait karein
+            sudo kubectl wait --for=condition=Ready node --all --timeout=60s 2>/dev/null || sleep 10
+
+            # 3. Docker Hub credentials ka secret banayein (taake ImagePull error na aaye)
+            sudo kubectl create secret docker-registry dockerhub-secret \
+              --docker-server=https://index.docker.io/v1/ \
+              --docker-username="${{ secrets.DOCKER_USERNAME }}" \
+              --docker-password="${{ secrets.DOCKER_PASSWORD }}" \
+              --dry-run=client -o yaml | sudo kubectl apply -f -
+
+            # 4. Latest code pull karein (k8s manifests ke liye)
             sudo mkdir -p /var/www/html
             sudo chown -R $USER:$USER /var/www/html
             cd /var/www/html
@@ -70,12 +80,17 @@ jobs:
 
             cd /var/www/html/GMZ_Task_2
 
-            # 4. deployment.yaml me Docker Hub image name set karein
+            # 5. deployment.yaml me Docker Hub image name set karein
             sed -i "s|DOCKER_IMAGE_PLACEHOLDER|${{ secrets.DOCKER_USERNAME }}/gmz-health-app:latest|g" k8s/deployment.yaml
 
-            # 5. Kubernetes resources apply karein
+            # 6. Kubernetes resources apply karein
             sudo kubectl apply -f k8s/
 
-            # 6. Nayi image ke sath zero-downtime rolling update karein
+            # 7. Nayi image ke sath rolling update karein (Timeout 180s rakha hai taake image download ho sake)
             sudo kubectl rollout restart deployment/gmz-health-app
-            sudo kubectl rollout status deployment/gmz-health-app --timeout=60s
+            if ! sudo kubectl rollout status deployment/gmz-health-app --timeout=180s; then
+              echo "=== Rollout timed out, showing Pod Status ==="
+              sudo kubectl get pods -o wide
+              sudo kubectl describe pods
+              exit 1
+            fi
