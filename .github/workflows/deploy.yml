@@ -1,4 +1,4 @@
-name: Build, Push to Docker Hub and Deploy
+name: Build, Push to Docker Hub and Deploy to Kubernetes
 
 on:
   push:
@@ -29,14 +29,14 @@ jobs:
           tags: ${{ secrets.DOCKER_USERNAME }}/gmz-health-app:latest
 
   # ==========================================
-  # JOB 2: Server Par Pull aur Container Run
+  # JOB 2: Deploy to Kubernetes on AWS EC2
   # ==========================================
-  deploy:
+  deploy-k8s:
     needs: build-and-push
     runs-on: ubuntu-latest
 
     steps:
-      - name: Pull Image from Docker Hub and Run Container
+      - name: Deploy to Kubernetes Cluster via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -44,34 +44,38 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: 22
           script: |
-            # 1. Docker check aur start karein (Amazon Linux 2023)
-            if ! command -v docker &> /dev/null; then
-              if command -v dnf &> /dev/null; then
-                sudo dnf install -y docker
-              else
-                sudo apt-get update -y && sudo apt-get install -y docker.io
-              fi
-              sudo systemctl start docker
-              sudo systemctl enable docker
-            fi
-            sudo systemctl start docker
-
-            # 2. Port 3000 free karein (agar PM2 chal raha ho)
-            command -v pm2 &> /dev/null && pm2 delete health-app 2>/dev/null || true
-
-            # 3. Docker Hub se latest image pull karein
-            sudo docker pull ${{ secrets.DOCKER_USERNAME }}/gmz-health-app:latest
-
-            # 4. Purana container stop aur remove karein
+            # 1. Purana standalone Docker container band karein (port 3000 free karne ke liye)
             sudo docker stop gmz-health-app 2>/dev/null || true
             sudo docker rm gmz-health-app 2>/dev/null || true
 
-            # 5. Docker Hub wali naye image se container run karein
-            sudo docker run -d \
-              --name gmz-health-app \
-              --restart always \
-              -p 3000:3000 \
-              ${{ secrets.DOCKER_USERNAME }}/gmz-health-app:latest
+            # 2. Check karein agar Kubernetes (K3s) install nahi hai to install karein
+            if ! command -v k3s &> /dev/null && ! command -v kubectl &> /dev/null; then
+              echo "Installing lightweight certified Kubernetes (K3s)..."
+              curl -sfL https://get.k3s.io | sh -
+              sudo chmod 644 /etc/rancher/k3s/k3s.yaml
+            fi
 
-            # 6. Purani bekaar images delete karein
-            sudo docker image prune -f
+            export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+
+            # 3. Latest code pull karein (k8s manifests ke liye)
+            sudo mkdir -p /var/www/html
+            sudo chown -R $USER:$USER /var/www/html
+            cd /var/www/html
+            if [ ! -d "/var/www/html/GMZ_Task_2/.git" ]; then
+              git clone https://github.com/ZainCloud009/GMZ_Task_2.git
+            else
+              cd /var/www/html/GMZ_Task_2
+              git pull origin main
+            fi
+
+            cd /var/www/html/GMZ_Task_2
+
+            # 4. deployment.yaml me Docker Hub image name set karein
+            sed -i "s|DOCKER_IMAGE_PLACEHOLDER|${{ secrets.DOCKER_USERNAME }}/gmz-health-app:latest|g" k8s/deployment.yaml
+
+            # 5. Kubernetes resources apply karein
+            sudo kubectl apply -f k8s/
+
+            # 6. Nayi image ke sath zero-downtime rolling update karein
+            sudo kubectl rollout restart deployment/gmz-health-app
+            sudo kubectl rollout status deployment/gmz-health-app --timeout=60s
