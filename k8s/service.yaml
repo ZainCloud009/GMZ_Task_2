@@ -3,7 +3,7 @@ kind: Service
 metadata:
   name: gmz-health-service
 spec:
-  type: ClusterIP
+  type: LoadBalancer
   selector:
     app: gmz-health-app
   ports:

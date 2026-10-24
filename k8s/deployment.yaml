@@ -22,7 +22,6 @@ spec:
           imagePullPolicy: Always
           ports:
             - containerPort: 3000
-              hostPort: 3000
           resources:
             requests:
               memory: "32Mi"
