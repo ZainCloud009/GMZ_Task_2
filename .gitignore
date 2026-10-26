@@ -13,3 +13,7 @@ override.tf.json
 *_override.tf.json
 .terraformrc
 terraform.rc
+
+# Virtual Environment & Python Scripts
+.venv/
+create_excel.py
