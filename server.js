@@ -79,7 +79,7 @@ async function initDatabase() {
       user: creds.username,
       password: creds.password,
       database: creds.dbname,
-      ssl: false, // Internal AWS VPC traffic between EKS and RDS
+      ssl: { rejectUnauthorized: false }, // Encrypted SSL connection to AWS RDS PostgreSQL
       connectionTimeoutMillis: 7000
     });
 
