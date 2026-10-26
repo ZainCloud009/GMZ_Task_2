@@ -26,11 +26,14 @@ jobs:
 
       # Fetch Docker Hub credentials dynamically from AWS Secrets Manager
       - name: Fetch Docker Credentials from AWS Secrets Manager
-        uses: aws-actions/aws-secretsmanager-get-secrets@v2
-        with:
-          secret-ids: |
-            gmz-cicd-docker-credentials
-          parse-json-secrets: true
+        run: |
+          echo "Fetching Docker Hub credentials from AWS Secrets Manager..."
+          SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id gmz-cicd-docker-credentials --region eu-north-1 --query SecretString --output text)
+          DOCKER_USER=$(echo "$SECRET_JSON" | jq -r '.DOCKER_USERNAME // .username')
+          DOCKER_PASS=$(echo "$SECRET_JSON" | jq -r '.DOCKER_PASSWORD // .password')
+          echo "::add-mask::$DOCKER_PASS"
+          echo "DOCKER_USERNAME=$DOCKER_USER" >> $GITHUB_ENV
+          echo "DOCKER_PASSWORD=$DOCKER_PASS" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -69,11 +72,10 @@ jobs:
 
       # Fetch Docker Hub credentials dynamically from AWS Secrets Manager
       - name: Fetch Docker Credentials from AWS Secrets Manager
-        uses: aws-actions/aws-secretsmanager-get-secrets@v2
-        with:
-          secret-ids: |
-            gmz-cicd-docker-credentials
-          parse-json-secrets: true
+        run: |
+          SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id gmz-cicd-docker-credentials --region eu-north-1 --query SecretString --output text)
+          DOCKER_USER=$(echo "$SECRET_JSON" | jq -r '.DOCKER_USERNAME // .username')
+          echo "DOCKER_USERNAME=$DOCKER_USER" >> $GITHUB_ENV
 
       - name: Update Kubeconfig for EKS
         run: |
