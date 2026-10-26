@@ -17,21 +17,36 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-north-1
+
+      # Fetch Docker Hub credentials dynamically from AWS Secrets Manager
+      - name: Fetch Docker Credentials from AWS Secrets Manager
+        uses: aws-actions/aws-secretsmanager-get-secrets@v2
+        with:
+          secret-ids: |
+            gmz-cicd-docker-credentials
+          parse-json-secrets: true
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          username: ${{ env.DOCKER_USERNAME }}
+          password: ${{ env.DOCKER_PASSWORD }}
 
       - name: Build and Push Docker Image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/gmz-health-app:latest
+          tags: ${{ env.DOCKER_USERNAME }}/gmz-health-app:latest
 
   # ==========================================
   # JOB 2: Deploy to AWS EKS Cluster
@@ -52,6 +67,14 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-north-1
 
+      # Fetch Docker Hub credentials dynamically from AWS Secrets Manager
+      - name: Fetch Docker Credentials from AWS Secrets Manager
+        uses: aws-actions/aws-secretsmanager-get-secrets@v2
+        with:
+          secret-ids: |
+            gmz-cicd-docker-credentials
+          parse-json-secrets: true
+
       - name: Update Kubeconfig for EKS
         run: |
           echo "Connecting to EKS cluster gmz-k8s-cluster in eu-north-1..."
@@ -60,7 +83,7 @@ jobs:
       - name: Trigger Rolling Update on EKS
         run: |
           echo "Ensuring deployment uses latest image..."
-          kubectl set image deployment/gmz-health-app health-app-container=${{ secrets.DOCKER_USERNAME }}/gmz-health-app:latest
+          kubectl set image deployment/gmz-health-app health-app-container=${{ env.DOCKER_USERNAME }}/gmz-health-app:latest
           
           echo "Restarting deployment to pull the fresh image..."
           kubectl rollout restart deployment/gmz-health-app
