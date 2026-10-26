@@ -3,9 +3,30 @@ const path = require('path');
 const os = require('os');
 const { Pool } = require('pg');
 const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
+const { createProxyMiddleware } = require('http-proxy-middleware');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// --------------------------------------------------
+// Database Manager (phpMyAdmin / Adminer) Reverse Proxy
+// --------------------------------------------------
+// Redirect /phpmyadmin to /phpmyadmin/ so relative assets and forms work properly
+app.get('/phpmyadmin', (req, res) => {
+  res.redirect(301, '/phpmyadmin/');
+});
+
+// Proxy /phpmyadmin to Adminer (placed BEFORE express.json to preserve POST body)
+app.use(
+  '/phpmyadmin',
+  createProxyMiddleware({
+    target: process.env.ADMINER_SERVICE_URL || 'http://gmz-adminer-service:8080',
+    changeOrigin: true,
+    pathRewrite: {
+      '^/phpmyadmin': ''
+    }
+  })
+);
 
 // Middleware to parse incoming JSON bodies
 app.use(express.json());

@@ -81,6 +81,11 @@ resource "kubernetes_deployment_v1" "health_app" {
             value = aws_secretsmanager_secret.db_secret.name
           }
 
+          env {
+            name  = "ADMINER_SERVICE_URL"
+            value = "http://gmz-adminer-service:8080"
+          }
+
           resources {
             requests = {
               cpu    = "50m"
@@ -122,11 +127,16 @@ resource "kubernetes_deployment_v1" "health_app" {
 }
 
 # --------------------------------------------------
-# Kubernetes Service (AWS Elastic Load Balancer)
+# Kubernetes Service (AWS Elastic Load Balancer with SSL)
 # --------------------------------------------------
 resource "kubernetes_service_v1" "health_service" {
   metadata {
     name = "gmz-health-service"
+    annotations = {
+      "service.beta.kubernetes.io/aws-load-balancer-ssl-cert"         = "arn:aws:acm:eu-north-1:634236768016:certificate/ffad07b4-c0d7-4748-bcdd-3f5d77406911"
+      "service.beta.kubernetes.io/aws-load-balancer-ssl-ports"        = "https"
+      "service.beta.kubernetes.io/aws-load-balancer-backend-protocol" = "http"
+    }
   }
 
   spec {
@@ -142,7 +152,97 @@ resource "kubernetes_service_v1" "health_service" {
       target_port = 3000
       protocol    = "TCP"
     }
+
+    port {
+      name        = "https"
+      port        = 443
+      target_port = 3000
+      protocol    = "TCP"
+    }
   }
 
   depends_on = [kubernetes_deployment_v1.health_app]
+}
+
+# --------------------------------------------------
+# Adminer Deployment (PostgreSQL Web GUI / phpMyAdmin equivalent)
+# --------------------------------------------------
+resource "kubernetes_deployment_v1" "adminer" {
+  metadata {
+    name = "gmz-db-adminer"
+    labels = {
+      app = "gmz-db-adminer"
+    }
+  }
+
+  spec {
+    replicas = 1
+
+    selector {
+      match_labels = {
+        app = "gmz-db-adminer"
+      }
+    }
+
+    template {
+      metadata {
+        labels = {
+          app = "gmz-db-adminer"
+        }
+      }
+
+      spec {
+        container {
+          name  = "adminer"
+          image = "adminer:latest"
+
+          port {
+            container_port = 8080
+          }
+
+          env {
+            name  = "ADMINER_DEFAULT_SERVER"
+            value = aws_db_instance.postgres.address
+          }
+
+          resources {
+            requests = {
+              cpu    = "20m"
+              memory = "32Mi"
+            }
+            limits = {
+              cpu    = "100m"
+              memory = "128Mi"
+            }
+          }
+        }
+      }
+    }
+  }
+
+  depends_on = [aws_eks_node_group.main, aws_db_instance.postgres]
+}
+
+# --------------------------------------------------
+# Adminer ClusterIP Service
+# --------------------------------------------------
+resource "kubernetes_service_v1" "adminer_service" {
+  metadata {
+    name = "gmz-adminer-service"
+  }
+
+  spec {
+    type = "ClusterIP"
+
+    selector = {
+      app = "gmz-db-adminer"
+    }
+
+    port {
+      port        = 8080
+      target_port = 8080
+    }
+  }
+
+  depends_on = [kubernetes_deployment_v1.adminer]
 }
