@@ -1,4 +1,4 @@
-name: Build, Push to Docker Hub and Deploy to Kubernetes
+name: Build, Push to Docker Hub and Deploy to AWS EKS
 
 on:
   push:
@@ -6,14 +6,18 @@ on:
 
 jobs:
   # ==========================================
-  # JOB 1: Docker Image Build & Push to Docker Hub
+  # JOB 1: Docker Image Build & Push
   # ==========================================
   build-and-push:
+    name: Build & Push Docker Image
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -29,97 +33,45 @@ jobs:
           tags: ${{ secrets.DOCKER_USERNAME }}/gmz-health-app:latest
 
   # ==========================================
-  # JOB 2: Deploy to Kubernetes on AWS EC2
+  # JOB 2: Deploy to AWS EKS Cluster
   # ==========================================
-  deploy-k8s:
+  deploy-eks:
+    name: Deploy to AWS EKS
     needs: build-and-push
     runs-on: ubuntu-latest
 
     steps:
-      - name: Deploy to Kubernetes Cluster via SSH
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          port: 22
-          timeout: 60s
-          command_timeout: 10m
-          script: |
-            # 1. Apache (httpd) ensure running
-            sudo systemctl start httpd 2>/dev/null || true
-            sudo systemctl enable httpd 2>/dev/null || true
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-north-1
 
-            # 2. Standalone Docker container stop karein (port 3000 free karne ke liye)
-            sudo docker stop gmz-health-app 2>/dev/null || true
-            sudo docker rm gmz-health-app 2>/dev/null || true
+      - name: Update Kubeconfig for EKS
+        run: |
+          echo "Connecting to EKS cluster gmz-k8s-cluster in eu-north-1..."
+          aws eks update-kubeconfig --region eu-north-1 --name gmz-k8s-cluster
 
-            # 3. K3s config ensure (ServiceLB enabled taake LoadBalancer port 3000 par chale)
-            sudo mkdir -p /etc/rancher/k3s
-            if grep -q "servicelb" /etc/rancher/k3s/config.yaml 2>/dev/null; then
-              cat <<'EOF' | sudo tee /etc/rancher/k3s/config.yaml
-            disable:
-              - traefik
-            write-kubeconfig-mode: "0644"
-            EOF
-              sudo systemctl restart k3s
-            fi
+      - name: Trigger Rolling Update on EKS
+        run: |
+          echo "Ensuring deployment uses latest image..."
+          kubectl set image deployment/gmz-health-app health-app-container=${{ secrets.DOCKER_USERNAME }}/gmz-health-app:latest
+          
+          echo "Restarting deployment to pull the fresh image..."
+          kubectl rollout restart deployment/gmz-health-app
+          
+          echo "Waiting for rollout to finish..."
+          kubectl rollout status deployment/gmz-health-app --timeout=180s
 
-            if ! sudo systemctl is-active --quiet k3s; then
-              sudo systemctl start k3s
-            fi
-
-            sudo chmod 644 /etc/rancher/k3s/k3s.yaml 2>/dev/null || true
-            export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-
-            # 4. K3s cluster status check (k3s kubectl use karein)
-            echo "Checking Kubernetes status via k3s kubectl..."
-            for i in {1..20}; do
-              if sudo k3s kubectl get nodes &>/dev/null; then
-                echo "Kubernetes is 100% READY on t3.small!"
-                sudo k3s kubectl get nodes
-                break
-              fi
-              echo "Waiting for Kubernetes node ($i/20)..."
-              sleep 2
-            done
-
-            # 5. Clean Git Pull
-            sudo mkdir -p /var/www/html
-            sudo chown -R $USER:$USER /var/www/html
-            cd /var/www/html
-            if [ ! -d "/var/www/html/GMZ_Task_2/.git" ]; then
-              git clone https://github.com/ZainCloud009/GMZ_Task_2.git
-            else
-              cd /var/www/html/GMZ_Task_2
-              git reset --hard HEAD
-              git pull origin main
-            fi
-
-            cd /var/www/html/GMZ_Task_2
-
-            # 6. Docker Hub credentials secret banayein
-            sudo k3s kubectl create secret docker-registry dockerhub-secret \
-              --docker-server=https://index.docker.io/v1/ \
-              --docker-username="${{ secrets.DOCKER_USERNAME }}" \
-              --docker-password="${{ secrets.DOCKER_PASSWORD }}" \
-              --dry-run=client -o yaml | sudo k3s kubectl apply -f -
-
-            # 7. deployment.yaml me Docker Hub image name set karein
-            sed -i "s|DOCKER_IMAGE_PLACEHOLDER|${{ secrets.DOCKER_USERNAME }}/gmz-health-app:latest|g" k8s/deployment.yaml
-
-            # 8. Kubernetes manifests apply karein
-            sudo k3s kubectl apply -f k8s/
-
-            # 9. Rolling update & status check
-            sudo k3s kubectl rollout restart deployment/gmz-health-app
-            if ! sudo k3s kubectl rollout status deployment/gmz-health-app --timeout=120s; then
-              echo "=== Pods Status ==="
-              sudo k3s kubectl get pods -o wide
-              sudo k3s kubectl describe pods
-              exit 1
-            fi
-
-            echo "=== Final Deployment Status ==="
-            sudo k3s kubectl get pods -o wide
-            sudo k3s kubectl get svc
+      - name: Verify Deployment & Service
+        run: |
+          echo "=== Deployment Status ==="
+          kubectl get deployment gmz-health-app
+          echo "=== Pods Status ==="
+          kubectl get pods -o wide
+          echo "=== Service Status ==="
+          kubectl get svc gmz-health-service

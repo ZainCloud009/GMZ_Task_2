@@ -5,7 +5,7 @@ metadata:
   labels:
     app: gmz-health-app
 spec:
-  replicas: 3
+  replicas: 2
   selector:
     matchLabels:
       app: gmz-health-app
@@ -14,26 +14,24 @@ spec:
       labels:
         app: gmz-health-app
     spec:
-      imagePullSecrets:
-        - name: dockerhub-secret
       containers:
         - name: health-app-container
-          image: DOCKER_IMAGE_PLACEHOLDER
+          image: zaindevops009/gmz-health-app:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 3000
           resources:
             requests:
-              memory: "32Mi"
-              cpu: "20m"
+              memory: "64Mi"
+              cpu: "50m"
             limits:
-              memory: "128Mi"
-              cpu: "150m"
+              memory: "256Mi"
+              cpu: "200m"
           livenessProbe:
             httpGet:
               path: /health
               port: 3000
-            initialDelaySeconds: 10
+            initialDelaySeconds: 15
             periodSeconds: 10
           readinessProbe:
             httpGet:

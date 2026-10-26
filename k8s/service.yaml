@@ -7,6 +7,7 @@ spec:
   selector:
     app: gmz-health-app
   ports:
-    - protocol: TCP
-      port: 3000
+    - name: http
+      protocol: TCP
+      port: 80
       targetPort: 3000
