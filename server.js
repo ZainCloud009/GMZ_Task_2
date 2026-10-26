@@ -11,8 +11,8 @@ const PORT = process.env.PORT || 3000;
 // --------------------------------------------------
 // Database Manager (phpMyAdmin / Adminer) Reverse Proxy
 // --------------------------------------------------
-// Redirect /phpmyadmin to /phpmyadmin/ so relative assets and forms work properly
-app.get('/phpmyadmin', (req, res) => {
+// Redirect /phpmyadmin (exact match without slash) to /phpmyadmin/
+app.get(/^\/phpmyadmin$/, (req, res) => {
   res.redirect(301, '/phpmyadmin/');
 });
 
