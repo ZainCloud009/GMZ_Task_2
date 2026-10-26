@@ -1,8 +1,10 @@
+// Load environment variables from .env file (if running locally or on server)
+require('dotenv').config();
+
 const express = require('express');
 const path = require('path');
 const os = require('os');
 const { Pool } = require('pg');
-const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 
 const app = express();
@@ -35,71 +37,40 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // --------------------------------------------------
-// Database & AWS Secrets Manager State
+// Database State & Configuration (via .env / process.env)
 // --------------------------------------------------
 let dbPool = null;
 let dbState = {
   connected: false,
-  source: 'Not initialized',
-  host: null,
-  database: null,
+  source: '.env / Environment Variables',
+  host: process.env.DB_HOST || null,
+  database: process.env.DB_NAME || 'gmz_tasks_db',
   latencyMs: null,
   error: null,
   lastChecked: null
 };
 
-// Function to fetch DB credentials from AWS Secrets Manager
-async function getDbCredentials() {
-  // Option 1: Direct environment variables (local or custom override)
-  if (process.env.DB_HOST && process.env.DB_USER && process.env.DB_PASSWORD) {
-    console.log('[DB] Using credentials from direct environment variables');
-    return {
-      host: process.env.DB_HOST,
-      port: parseInt(process.env.DB_PORT || '5432', 10),
-      username: process.env.DB_USER,
-      password: process.env.DB_PASSWORD,
-      dbname: process.env.DB_NAME || 'gmz_tasks_db',
-      source: 'Direct Environment Variables'
-    };
-  }
-
-  // Option 2: Dynamic fetch from AWS Secrets Manager
-  const secretName = process.env.DB_SECRET_NAME || 'gmz-k8s-cluster-rds-credentials';
-  const region = process.env.AWS_REGION || 'eu-north-1';
-
-  console.log(`[Secrets Manager] Fetching secret "${secretName}" from region "${region}"...`);
-  const client = new SecretsManagerClient({ region });
-  const command = new GetSecretValueCommand({ SecretId: secretName });
-  const response = await client.send(command);
-
-  if (!response.SecretString) {
-    throw new Error('SecretString is empty in AWS Secrets Manager response');
-  }
-
-  const secret = JSON.parse(response.SecretString);
-  console.log(`[Secrets Manager] Successfully retrieved DB credentials for host: ${secret.host}`);
-
-  return {
-    host: secret.host,
-    port: parseInt(secret.port || '5432', 10),
-    username: secret.username,
-    password: secret.password,
-    dbname: secret.dbname || 'gmz_tasks_db',
-    source: `AWS Secrets Manager (${secretName})`
-  };
-}
-
-// Function to initialize PostgreSQL connection and auto-create tasks table
+// Function to initialize PostgreSQL connection using Environment Variables (.env)
 async function initDatabase() {
   try {
-    const creds = await getDbCredentials();
+    const host = process.env.DB_HOST;
+    const port = parseInt(process.env.DB_PORT || '5432', 10);
+    const user = process.env.DB_USER || 'postgresadmin';
+    const password = process.env.DB_PASSWORD;
+    const database = process.env.DB_NAME || 'gmz_tasks_db';
+
+    if (!host || !password) {
+      throw new Error('Database credentials missing in environment variables (.env)');
+    }
+
+    console.log(`[Database] Connecting to PostgreSQL at ${host}:${port} using environment variables (.env)...`);
 
     dbPool = new Pool({
-      host: creds.host,
-      port: creds.port,
-      user: creds.username,
-      password: creds.password,
-      database: creds.dbname,
+      host,
+      port,
+      user,
+      password,
+      database,
       ssl: { rejectUnauthorized: false }, // Encrypted SSL connection to AWS RDS PostgreSQL
       connectionTimeoutMillis: 7000
     });
@@ -121,22 +92,22 @@ async function initDatabase() {
 
     dbState = {
       connected: true,
-      source: creds.source,
-      host: creds.host,
-      database: creds.dbname,
+      source: '.env / Environment Variables',
+      host: host,
+      database: database,
       latencyMs: latency,
       error: null,
       lastChecked: new Date().toISOString()
     };
 
-    console.log(`[PostgreSQL] Connected successfully to ${creds.host}/${creds.dbname} (Latency: ${latency}ms)`);
+    console.log(`[PostgreSQL] Connected successfully to ${host}/${database} (Latency: ${latency}ms)`);
   } catch (err) {
     console.error('[DB Error] Could not connect to database:', err.message);
     dbState = {
       connected: false,
-      source: 'AWS Secrets Manager Attempted',
-      host: null,
-      database: null,
+      source: '.env / Environment Variables',
+      host: process.env.DB_HOST || null,
+      database: process.env.DB_NAME || 'gmz_tasks_db',
       latencyMs: null,
       error: err.message,
       lastChecked: new Date().toISOString()
@@ -346,6 +317,6 @@ app.delete('/api/tasks/:id', ensureDb, async (req, res) => {
 // Start Express Server and trigger DB initialization
 app.listen(PORT, async () => {
   console.log(`Server is running at http://localhost:${PORT}`);
-  // Attempt DB initialization in background on startup
+  // Attempt DB initialization on startup using environment variables (.env)
   await initDatabase();
 });

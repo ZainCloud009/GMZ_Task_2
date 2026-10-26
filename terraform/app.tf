@@ -26,6 +26,25 @@ resource "kubernetes_secret_v1" "dockerhub_secret" {
 }
 
 # --------------------------------------------------
+# Kubernetes Secret for Database Credentials (Twelve-Factor App Standard)
+# --------------------------------------------------
+resource "kubernetes_secret_v1" "db_credentials" {
+  metadata {
+    name = "gmz-db-credentials"
+  }
+
+  data = {
+    DB_HOST     = aws_db_instance.postgres.address
+    DB_PORT     = tostring(aws_db_instance.postgres.port)
+    DB_USER     = aws_db_instance.postgres.username
+    DB_PASSWORD = random_password.db_password.result
+    DB_NAME     = aws_db_instance.postgres.db_name
+  }
+
+  depends_on = [aws_eks_node_group.main, aws_db_instance.postgres]
+}
+
+# --------------------------------------------------
 # Kubernetes Deployment for Node.js Health Application
 # --------------------------------------------------
 resource "kubernetes_deployment_v1" "health_app" {
@@ -71,14 +90,11 @@ resource "kubernetes_deployment_v1" "health_app" {
             container_port = 3000
           }
 
-          env {
-            name  = "AWS_REGION"
-            value = var.aws_region
-          }
-
-          env {
-            name  = "DB_SECRET_NAME"
-            value = aws_secretsmanager_secret.db_secret.name
+          # Load database credentials from Kubernetes Secret into environment variables (.env standard)
+          env_from {
+            secret_ref {
+              name = kubernetes_secret_v1.db_credentials.metadata[0].name
+            }
           }
 
           env {
@@ -122,7 +138,8 @@ resource "kubernetes_deployment_v1" "health_app" {
   depends_on = [
     aws_eks_node_group.main,
     aws_db_instance.postgres,
-    aws_secretsmanager_secret_version.db_secret_val
+    aws_secretsmanager_secret_version.db_secret_val,
+    kubernetes_secret_v1.db_credentials
   ]
 }
 
