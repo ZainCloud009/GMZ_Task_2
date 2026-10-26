@@ -71,6 +71,16 @@ resource "kubernetes_deployment_v1" "health_app" {
             container_port = 3000
           }
 
+          env {
+            name  = "AWS_REGION"
+            value = var.aws_region
+          }
+
+          env {
+            name  = "DB_SECRET_NAME"
+            value = aws_secretsmanager_secret.db_secret.name
+          }
+
           resources {
             requests = {
               cpu    = "50m"
@@ -104,7 +114,11 @@ resource "kubernetes_deployment_v1" "health_app" {
     }
   }
 
-  depends_on = [aws_eks_node_group.main]
+  depends_on = [
+    aws_eks_node_group.main,
+    aws_db_instance.postgres,
+    aws_secretsmanager_secret_version.db_secret_val
+  ]
 }
 
 # --------------------------------------------------

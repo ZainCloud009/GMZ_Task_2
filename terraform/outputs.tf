@@ -17,3 +17,13 @@ output "load_balancer_hostname" {
   description = "Public URL / Hostname of the AWS Load Balancer"
   value       = try(kubernetes_service_v1.health_service.status[0].load_balancer[0].ingress[0].hostname, "Pending provisioning by AWS...")
 }
+
+output "rds_endpoint" {
+  description = "The connection endpoint for the RDS PostgreSQL instance"
+  value       = aws_db_instance.postgres.endpoint
+}
+
+output "secrets_manager_secret_name" {
+  description = "Name of the secret in AWS Secrets Manager"
+  value       = aws_secretsmanager_secret.db_secret.name
+}

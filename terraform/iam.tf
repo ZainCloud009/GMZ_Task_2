@@ -57,3 +57,30 @@ resource "aws_iam_role_policy_attachment" "node_ecr_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
   role       = aws_iam_role.node_group.name
 }
+
+# --------------------------------------------------
+# IAM Policy for Secrets Manager Read Access
+# --------------------------------------------------
+resource "aws_iam_policy" "secrets_read" {
+  name        = "${var.cluster_name}-secrets-read-policy"
+  description = "Allows EKS worker nodes & pods to read RDS secret from AWS Secrets Manager"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:DescribeSecret"
+        ]
+        Resource = aws_secretsmanager_secret.db_secret.arn
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "node_secrets_policy" {
+  policy_arn = aws_iam_policy.secrets_read.arn
+  role       = aws_iam_role.node_group.name
+}

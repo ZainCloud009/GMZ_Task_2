@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>System Health Dashboard</title>
+  <title>GMZ Cloud Control - EKS & RDS Dashboard</title>
   <style>
     * {
       box-sizing: border-box;
@@ -12,63 +12,125 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
     body {
-      background: #0f172a;
+      background: #0b1120;
       color: #f8fafc;
       min-height: 100vh;
       display: flex;
       justify-content: center;
+      align-items: flex-start;
+      padding: 30px 15px;
+    }
+    .container {
+      max-width: 900px;
+      width: 100%;
+    }
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
       align-items: center;
-      padding: 20px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .app-title {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: #38bdf8;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .tabs-nav {
+      display: flex;
+      background: #1e293b;
+      padding: 4px;
+      border-radius: 12px;
+      border: 1px solid #334155;
+      gap: 4px;
+    }
+    .tab-btn {
+      background: transparent;
+      color: #94a3b8;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .tab-btn:hover {
+      color: #f8fafc;
+    }
+    .tab-btn.active {
+      background: #0284c7;
+      color: #ffffff;
+      box-shadow: 0 4px 12px rgba(2, 132, 199, 0.4);
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
     }
     .card {
       background: #1e293b;
       border: 1px solid #334155;
       border-radius: 16px;
-      padding: 32px;
-      max-width: 550px;
-      width: 100%;
+      padding: 26px;
       box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+      margin-bottom: 24px;
     }
-    .header {
+    .card-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 24px;
-      padding-bottom: 16px;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
       border-bottom: 1px solid #334155;
     }
-    .title {
-      font-size: 1.4rem;
+    .card-title {
+      font-size: 1.2rem;
       font-weight: 700;
-      color: #38bdf8;
+      color: #e2e8f0;
     }
     .badge {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      background: #064e3b;
-      color: #34d399;
       padding: 6px 12px;
       border-radius: 9999px;
-      font-size: 0.85rem;
+      font-size: 0.8rem;
       font-weight: 600;
+    }
+    .badge-success {
+      background: #064e3b;
+      color: #34d399;
+    }
+    .badge-danger {
+      background: #7f1d1d;
+      color: #f87171;
+    }
+    .badge-info {
+      background: #0c4a6e;
+      color: #38bdf8;
     }
     .pulse-dot {
       width: 8px;
       height: 8px;
-      background: #34d399;
+      background: currentColor;
       border-radius: 50%;
       animation: pulse 1.5s infinite;
     }
     @keyframes pulse {
       0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.4; transform: scale(1.2); }
+      50% { opacity: 0.4; transform: scale(1.3); }
     }
     .grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
       gap: 16px;
-      margin-bottom: 24px;
+      margin-bottom: 20px;
     }
     .stat-box {
       background: #0f172a;
@@ -84,12 +146,12 @@
       margin-bottom: 4px;
     }
     .stat-value {
-      font-size: 1.1rem;
-      font-weight: 600;
+      font-size: 1.15rem;
+      font-weight: 700;
       color: #f1f5f9;
     }
     .stat-highlight {
-      grid-column: span 2;
+      grid-column: 1 / -1;
       border-color: #0284c7;
       background: linear-gradient(145deg, #0f172a 0%, #1e293b 100%);
       display: flex;
@@ -100,86 +162,299 @@
       color: #38bdf8;
       font-size: 1.4rem;
     }
-    .sub-points {
-      font-size: 0.8rem;
-      color: #38bdf8;
-      margin-top: 4px;
+    .form-group {
+      margin-bottom: 14px;
+    }
+    .form-label {
+      display: block;
+      font-size: 0.85rem;
+      color: #94a3b8;
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+    .form-input, .form-select, .form-textarea {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid #334155;
+      color: #f8fafc;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border 0.2s;
+    }
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+      border-color: #38bdf8;
+    }
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
     }
     .btn {
-      width: 100%;
       background: #0284c7;
       color: #ffffff;
       border: none;
-      padding: 12px;
+      padding: 10px 18px;
       border-radius: 8px;
-      font-size: 0.95rem;
+      font-size: 0.9rem;
       font-weight: 600;
       cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
       transition: background 0.2s;
     }
     .btn:hover {
       background: #0369a1;
     }
-    .footer {
-      margin-top: 16px;
+    .btn-danger {
+      background: #b91c1c;
+    }
+    .btn-danger:hover {
+      background: #991b1b;
+    }
+    .btn-secondary {
+      background: #334155;
+      color: #cbd5e1;
+    }
+    .btn-secondary:hover {
+      background: #475569;
+    }
+    .task-item {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: border 0.2s;
+    }
+    .task-item:hover {
+      border-color: #475569;
+    }
+    .task-info {
+      flex: 1;
+    }
+    .task-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin-bottom: 4px;
+    }
+    .task-desc {
+      font-size: 0.85rem;
+      color: #94a3b8;
+      margin-bottom: 8px;
+    }
+    .task-meta {
+      display: flex;
+      gap: 10px;
+      align-items: center;
       font-size: 0.75rem;
       color: #64748b;
+    }
+    .task-actions {
+      display: flex;
+      gap: 8px;
+    }
+    .db-banner {
+      background: #082f49;
+      border: 1px solid #0284c7;
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .db-meta {
+      font-size: 0.85rem;
+      color: #bae6fd;
+    }
+    .empty-state {
       text-align: center;
+      padding: 40px;
+      color: #64748b;
     }
   </style>
 </head>
 <body>
-  <div class="card">
-    <div class="header">
-      <div class="title">Node.js Health Status</div>
-      <div class="badge" id="badge">
-        <span class="pulse-dot"></span>
-        <span id="status-text">Checking...</span>
+  <div class="container">
+    <!-- Header -->
+    <div class="header-bar">
+      <div class="app-title">
+        <span>🚀 GMZ Cloud Platform</span>
+      </div>
+      <div class="tabs-nav">
+        <button class="tab-btn active" onclick="switchTab('health')">System Health</button>
+        <button class="tab-btn" onclick="switchTab('tasks')">RDS Task Tracker (CRUD)</button>
       </div>
     </div>
 
-    <div class="grid">
-      <div class="stat-box stat-highlight">
-        <div>
-          <div class="stat-label">Live CPU Usage</div>
-          <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 2px;">
-            Load Avg (1m, 5m): <span id="cpu-load" style="color: #cbd5e1;">-</span>
+    <!-- TAB 1: System Health -->
+    <div id="tab-health" class="tab-content active">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Node.js Health & EKS Node Metrics</div>
+          <div class="badge badge-success" id="health-badge">
+            <span class="pulse-dot"></span>
+            <span id="health-status-text">Checking...</span>
           </div>
         </div>
-        <div style="text-align: right;">
-          <div class="stat-value" id="cpu-usage">-</div>
-          <div class="sub-points" id="cpu-points">Points: -</div>
+
+        <div class="grid">
+          <div class="stat-box stat-highlight">
+            <div>
+              <div class="stat-label">Live CPU Usage</div>
+              <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 2px;">
+                Load Avg (1m, 5m): <span id="cpu-load" style="color: #cbd5e1;">-</span>
+              </div>
+            </div>
+            <div style="text-align: right;">
+              <div class="stat-value" id="cpu-usage">-</div>
+              <div style="font-size: 0.8rem; color: #38bdf8; margin-top: 4px;" id="cpu-points">Points: -</div>
+            </div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Platform / Architecture</div>
+            <div class="stat-value" id="platform">-</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Container Uptime</div>
+            <div class="stat-value" id="uptime">-</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Free Memory</div>
+            <div class="stat-value" id="memory">-</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">CPU Cores</div>
+            <div class="stat-value" id="cpus">-</div>
+          </div>
         </div>
-      </div>
-      <div class="stat-box">
-        <div class="stat-label">Platform</div>
-        <div class="stat-value" id="platform">-</div>
-      </div>
-      <div class="stat-box">
-        <div class="stat-label">Server Uptime</div>
-        <div class="stat-value" id="uptime">-</div>
-      </div>
-      <div class="stat-box">
-        <div class="stat-label">Available Memory</div>
-        <div class="stat-value" id="memory">-</div>
-      </div>
-      <div class="stat-box">
-        <div class="stat-label">CPU Cores</div>
-        <div class="stat-value" id="cpus">-</div>
+
+        <!-- Database Health In Health Tab -->
+        <div class="card-header" style="margin-top: 24px;">
+          <div class="card-title" style="font-size: 1rem;">AWS RDS PostgreSQL Health</div>
+          <div class="badge" id="db-health-badge">
+            <span class="pulse-dot"></span>
+            <span id="db-health-text">Checking DB...</span>
+          </div>
+        </div>
+        <div class="grid">
+          <div class="stat-box">
+            <div class="stat-label">Secrets Provider</div>
+            <div class="stat-value" style="font-size: 0.95rem; color: #38bdf8;" id="db-secret-source">AWS Secrets Manager</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">RDS Latency</div>
+            <div class="stat-value" id="db-latency">-</div>
+          </div>
+        </div>
+
+        <button class="btn" style="width: 100%; justify-content: center;" onclick="fetchHealth()">Refresh Health Status</button>
+        <div style="margin-top: 12px; font-size: 0.75rem; color: #64748b; text-align: center;" id="health-last-updated">Last checked: Just now</div>
       </div>
     </div>
 
-    <button class="btn" onclick="fetchHealth()">Refresh Health Status</button>
-    <div class="footer" id="last-updated">Last updated: Just now</div>
+    <!-- TAB 2: RDS Task & Incident Tracker (CRUD) -->
+    <div id="tab-tasks" class="tab-content">
+      <!-- Secrets Manager & RDS Connection Banner -->
+      <div class="db-banner">
+        <div>
+          <div style="font-weight: 700; color: #f0f9ff; font-size: 1rem;">🔒 AWS Secrets Manager & RDS PostgreSQL</div>
+          <div class="db-meta" id="db-banner-details">Connecting to AWS Secrets Manager...</div>
+        </div>
+        <div class="badge" id="crud-db-badge">Checking...</div>
+      </div>
+
+      <!-- Create Task Card -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title" id="form-title">Create New Task / Incident (RDS Insert)</div>
+        </div>
+
+        <form id="task-form" onsubmit="handleTaskSubmit(event)">
+          <input type="hidden" id="task-edit-id" value="">
+          <div class="form-group">
+            <label class="form-label">Task Title *</label>
+            <input type="text" id="task-title" class="form-input" placeholder="e.g. Test Secrets Manager rotation" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Description</label>
+            <textarea id="task-desc" class="form-textarea" rows="2" placeholder="Details about this task..."></textarea>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Priority</label>
+              <select id="task-priority" class="form-select">
+                <option value="Low">Low</option>
+                <option value="Medium" selected>Medium</option>
+                <option value="High">High</option>
+                <option value="Critical">Critical</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Status</label>
+              <select id="task-status" class="form-select">
+                <option value="Pending" selected>Pending</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Completed">Completed</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 10px; margin-top: 10px;">
+            <button type="submit" class="btn" id="submit-btn">Save to AWS RDS</button>
+            <button type="button" class="btn btn-secondary" id="cancel-edit-btn" style="display: none;" onclick="cancelEdit()">Cancel Edit</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Task List Card -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Live Records in PostgreSQL Database</div>
+          <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;" onclick="loadTasks()">↻ Refresh</button>
+        </div>
+
+        <div id="tasks-container">
+          <div class="empty-state">Loading tasks from RDS...</div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
+    // Tab Switching
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+      if (tabId === 'health') {
+        document.querySelectorAll('.tab-btn')[0].classList.add('active');
+        document.getElementById('tab-health').classList.add('active');
+        fetchHealth();
+      } else {
+        document.querySelectorAll('.tab-btn')[1].classList.add('active');
+        document.getElementById('tab-tasks').classList.add('active');
+        loadTasks();
+        checkDbStatus();
+      }
+    }
+
+    // Health Check Fetch
     async function fetchHealth() {
       try {
         const res = await fetch('/health');
         const data = await res.json();
-        
-        document.getElementById('status-text').textContent = data.status === 'UP' ? 'ONLINE' : 'DEGRADED';
+
+        document.getElementById('health-status-text').textContent = data.status === 'UP' ? 'ONLINE' : 'DEGRADED';
         document.getElementById('cpu-usage').textContent = data.system.cpuUsage || '0.00%';
         document.getElementById('cpu-points').textContent = 'Points: ' + (data.system.cpuUsagePoints !== undefined ? data.system.cpuUsagePoints : '-');
         
@@ -190,15 +465,199 @@
         document.getElementById('uptime').textContent = data.uptime;
         document.getElementById('memory').textContent = data.system.freeMemory;
         document.getElementById('cpus').textContent = data.system.cpus + ' Cores';
-        document.getElementById('last-updated').textContent = 'Last updated: ' + new Date().toLocaleTimeString();
+        document.getElementById('health-last-updated').textContent = 'Last checked: ' + new Date().toLocaleTimeString();
+
+        // DB Status in Health Tab
+        const dbBadge = document.getElementById('db-health-badge');
+        const dbText = document.getElementById('db-health-text');
+        if (data.database && data.database.status === 'CONNECTED') {
+          dbBadge.className = 'badge badge-success';
+          dbText.textContent = 'CONNECTED (' + (data.database.latency || '<5ms') + ')';
+          document.getElementById('db-secret-source').textContent = data.database.source || 'AWS Secrets Manager';
+          document.getElementById('db-latency').textContent = data.database.latency || 'OK';
+        } else {
+          dbBadge.className = 'badge badge-danger';
+          dbText.textContent = data.database && data.database.error ? 'ERROR' : 'DISCONNECTED';
+          document.getElementById('db-latency').textContent = data.database && data.database.error ? data.database.error : 'Connecting...';
+        }
       } catch (err) {
-        document.getElementById('status-text').textContent = 'OFFLINE';
-        document.getElementById('badge').style.background = '#7f1d1d';
-        document.getElementById('badge').style.color = '#f87171';
+        document.getElementById('health-status-text').textContent = 'OFFLINE';
+        document.getElementById('health-badge').className = 'badge badge-danger';
       }
     }
 
-    // Auto-fetch on load and every 5 seconds
+    // Check DB Status for CRUD banner
+    async function checkDbStatus() {
+      try {
+        const res = await fetch('/api/db-status');
+        const data = await res.json();
+        const badge = document.getElementById('crud-db-badge');
+        const meta = document.getElementById('db-banner-details');
+
+        if (data.connected) {
+          badge.className = 'badge badge-success';
+          badge.textContent = 'RDS Connected';
+          meta.innerHTML = `Credentials Source: <b>${data.source}</b> | DB: <b>${data.database}</b> (${data.latencyMs}ms)`;
+        } else {
+          badge.className = 'badge badge-danger';
+          badge.textContent = 'RDS Disconnected';
+          meta.innerHTML = `Error: ${data.error || 'RDS instance initializing...'}`;
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    // CRUD: Read All Tasks
+    async function loadTasks() {
+      const container = document.getElementById('tasks-container');
+      try {
+        const res = await fetch('/api/tasks');
+        if (!res.ok) {
+          const errData = await res.json();
+          container.innerHTML = `<div class="empty-state" style="color: #f87171;">⚠️ Database Notice: ${errData.details || errData.error}</div>`;
+          return;
+        }
+
+        const data = await res.json();
+        if (!data.tasks || data.tasks.length === 0) {
+          container.innerHTML = `<div class="empty-state">No tasks created yet in AWS RDS. Add your first task above!</div>`;
+          return;
+        }
+
+        container.innerHTML = data.tasks.map(t => `
+          <div class="task-item" id="task-row-${t.id}">
+            <div class="task-info">
+              <div class="task-title">${escapeHtml(t.title)}</div>
+              <div class="task-desc">${escapeHtml(t.description || 'No description provided')}</div>
+              <div class="task-meta">
+                <span class="badge ${getPriorityBadge(t.priority)}">${t.priority}</span>
+                <span class="badge ${getStatusBadge(t.status)}">${t.status}</span>
+                <span>ID: #${t.id}</span>
+                <span>${new Date(t.created_at).toLocaleString()}</span>
+              </div>
+            </div>
+            <div class="task-actions">
+              <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;" onclick="startEdit(${JSON.stringify(t).replace(/"/g, '&quot;')})">Edit</button>
+              <button class="btn btn-danger" style="padding: 6px 12px; font-size: 0.8rem;" onclick="deleteTask(${t.id})">Delete</button>
+            </div>
+          </div>
+        `).join('');
+      } catch (err) {
+        container.innerHTML = `<div class="empty-state" style="color: #f87171;">Error loading tasks: ${err.message}</div>`;
+      }
+    }
+
+    // CRUD: Create or Update Task
+    async function handleTaskSubmit(e) {
+      e.preventDefault();
+      const editId = document.getElementById('task-edit-id').value;
+      const title = document.getElementById('task-title').value;
+      const description = document.getElementById('task-desc').value;
+      const priority = document.getElementById('task-priority').value;
+      const status = document.getElementById('task-status').value;
+
+      const payload = { title, description, priority, status };
+      const submitBtn = document.getElementById('submit-btn');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Saving...';
+
+      try {
+        let res;
+        if (editId) {
+          // UPDATE
+          res = await fetch(`/api/tasks/${editId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+        } else {
+          // CREATE
+          res = await fetch('/api/tasks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+        }
+
+        if (res.ok) {
+          cancelEdit();
+          loadTasks();
+        } else {
+          const errData = await res.json();
+          alert('Error: ' + (errData.details || errData.error));
+        }
+      } catch (err) {
+        alert('Request failed: ' + err.message);
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = editId ? 'Update Task' : 'Save to AWS RDS';
+      }
+    }
+
+    // CRUD: Delete Task
+    async function deleteTask(id) {
+      if (!confirm(`Are you sure you want to delete Task #${id} from AWS RDS?`)) return;
+
+      try {
+        const res = await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          loadTasks();
+        } else {
+          const err = await res.json();
+          alert('Delete failed: ' + err.error);
+        }
+      } catch (e) {
+        alert('Network error: ' + e.message);
+      }
+    }
+
+    function startEdit(task) {
+      document.getElementById('task-edit-id').value = task.id;
+      document.getElementById('task-title').value = task.title;
+      document.getElementById('task-desc').value = task.description || '';
+      document.getElementById('task-priority').value = task.priority;
+      document.getElementById('task-status').value = task.status;
+      document.getElementById('form-title').textContent = `Edit Task #${task.id}`;
+      document.getElementById('submit-btn').textContent = 'Update Task';
+      document.getElementById('cancel-edit-btn').style.display = 'inline-flex';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function cancelEdit() {
+      document.getElementById('task-edit-id').value = '';
+      document.getElementById('task-title').value = '';
+      document.getElementById('task-desc').value = '';
+      document.getElementById('task-priority').value = 'Medium';
+      document.getElementById('task-status').value = 'Pending';
+      document.getElementById('form-title').textContent = 'Create New Task / Incident (RDS Insert)';
+      document.getElementById('submit-btn').textContent = 'Save to AWS RDS';
+      document.getElementById('cancel-edit-btn').style.display = 'none';
+    }
+
+    function getPriorityBadge(priority) {
+      switch (priority) {
+        case 'Critical': return 'badge-danger';
+        case 'High': return 'badge-danger';
+        case 'Low': return 'badge-secondary';
+        default: return 'badge-info';
+      }
+    }
+
+    function getStatusBadge(status) {
+      switch (status) {
+        case 'Completed': return 'badge-success';
+        case 'In Progress': return 'badge-info';
+        default: return 'badge-secondary';
+      }
+    }
+
+    function escapeHtml(text) {
+      if (!text) return '';
+      return text.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[m]);
+    }
+
+    // Auto-fetch on load
     fetchHealth();
     setInterval(fetchHealth, 5000);
   </script>
