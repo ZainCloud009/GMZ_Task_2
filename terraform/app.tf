@@ -34,14 +34,15 @@ resource "kubernetes_secret_v1" "db_credentials" {
   }
 
   data = {
-    DB_HOST     = aws_db_instance.postgres.address
-    DB_PORT     = tostring(aws_db_instance.postgres.port)
-    DB_USER     = aws_db_instance.postgres.username
+    DB_ENGINE   = "mysql"
+    DB_HOST     = aws_db_instance.mysql.address
+    DB_PORT     = tostring(aws_db_instance.mysql.port)
+    DB_USER     = aws_db_instance.mysql.username
     DB_PASSWORD = random_password.db_password.result
-    DB_NAME     = aws_db_instance.postgres.db_name
+    DB_NAME     = aws_db_instance.mysql.db_name
   }
 
-  depends_on = [aws_eks_node_group.main, aws_db_instance.postgres]
+  depends_on = [aws_eks_node_group.main, aws_db_instance.mysql]
 }
 
 # --------------------------------------------------
@@ -98,8 +99,8 @@ resource "kubernetes_deployment_v1" "health_app" {
           }
 
           env {
-            name  = "ADMINER_SERVICE_URL"
-            value = "http://gmz-adminer-service:8080"
+            name  = "PHPMYADMIN_SERVICE_URL"
+            value = "http://gmz-phpmyadmin-service:80"
           }
 
           resources {
@@ -137,7 +138,7 @@ resource "kubernetes_deployment_v1" "health_app" {
 
   depends_on = [
     aws_eks_node_group.main,
-    aws_db_instance.postgres,
+    aws_db_instance.mysql,
     aws_secretsmanager_secret_version.db_secret_val,
     kubernetes_secret_v1.db_credentials
   ]
@@ -182,13 +183,13 @@ resource "kubernetes_service_v1" "health_service" {
 }
 
 # --------------------------------------------------
-# Adminer Deployment (PostgreSQL Web GUI / phpMyAdmin equivalent)
+# phpMyAdmin Deployment (Official MySQL Web GUI)
 # --------------------------------------------------
-resource "kubernetes_deployment_v1" "adminer" {
+resource "kubernetes_deployment_v1" "phpmyadmin" {
   metadata {
-    name = "gmz-db-adminer"
+    name = "gmz-phpmyadmin"
     labels = {
-      app = "gmz-db-adminer"
+      app = "gmz-phpmyadmin"
     }
   }
 
@@ -197,39 +198,54 @@ resource "kubernetes_deployment_v1" "adminer" {
 
     selector {
       match_labels = {
-        app = "gmz-db-adminer"
+        app = "gmz-phpmyadmin"
       }
     }
 
     template {
       metadata {
         labels = {
-          app = "gmz-db-adminer"
+          app = "gmz-phpmyadmin"
         }
       }
 
       spec {
         container {
-          name  = "adminer"
-          image = "adminer:latest"
+          name  = "phpmyadmin"
+          image = "phpmyadmin/phpmyadmin:latest"
 
           port {
-            container_port = 8080
+            container_port = 80
           }
 
           env {
-            name  = "ADMINER_DEFAULT_SERVER"
-            value = aws_db_instance.postgres.address
+            name  = "PMA_HOST"
+            value = aws_db_instance.mysql.address
+          }
+
+          env {
+            name  = "PMA_PORT"
+            value = "3306"
+          }
+
+          env {
+            name  = "PMA_ABSOLUTE_URI"
+            value = "https://iamzain.space/phpmyadmin/"
+          }
+
+          env {
+            name  = "PMA_ARBITRARY"
+            value = "1"
           }
 
           resources {
             requests = {
-              cpu    = "20m"
-              memory = "32Mi"
+              cpu    = "50m"
+              memory = "64Mi"
             }
             limits = {
-              cpu    = "100m"
-              memory = "128Mi"
+              cpu    = "250m"
+              memory = "256Mi"
             }
           }
         }
@@ -237,29 +253,29 @@ resource "kubernetes_deployment_v1" "adminer" {
     }
   }
 
-  depends_on = [aws_eks_node_group.main, aws_db_instance.postgres]
+  depends_on = [aws_eks_node_group.main, aws_db_instance.mysql]
 }
 
 # --------------------------------------------------
-# Adminer ClusterIP Service
+# phpMyAdmin ClusterIP Service
 # --------------------------------------------------
-resource "kubernetes_service_v1" "adminer_service" {
+resource "kubernetes_service_v1" "phpmyadmin_service" {
   metadata {
-    name = "gmz-adminer-service"
+    name = "gmz-phpmyadmin-service"
   }
 
   spec {
     type = "ClusterIP"
 
     selector = {
-      app = "gmz-db-adminer"
+      app = "gmz-phpmyadmin"
     }
 
     port {
-      port        = 8080
-      target_port = 8080
+      port        = 80
+      target_port = 80
     }
   }
 
-  depends_on = [kubernetes_deployment_v1.adminer]
+  depends_on = [kubernetes_deployment_v1.phpmyadmin]
 }

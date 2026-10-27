@@ -1,5 +1,5 @@
 # --------------------------------------------------
-# Cryptographically Secure Random Password for RDS
+# Cryptographically Secure Random Password for RDS MySQL
 # --------------------------------------------------
 resource "random_password" "db_password" {
   length           = 16
@@ -27,11 +27,11 @@ resource "aws_secretsmanager_secret" "db_secret" {
 resource "aws_secretsmanager_secret_version" "db_secret_val" {
   secret_id = aws_secretsmanager_secret.db_secret.id
   secret_string = jsonencode({
-    engine   = "postgres"
-    host     = aws_db_instance.postgres.address
-    port     = aws_db_instance.postgres.port
-    dbname   = aws_db_instance.postgres.db_name
-    username = aws_db_instance.postgres.username
+    engine   = "mysql"
+    host     = aws_db_instance.mysql.address
+    port     = aws_db_instance.mysql.port
+    dbname   = aws_db_instance.mysql.db_name
+    username = aws_db_instance.mysql.username
     password = random_password.db_password.result
   })
 }
@@ -49,17 +49,17 @@ resource "aws_db_subnet_group" "rds" {
 }
 
 # --------------------------------------------------
-# RDS Security Group
+# RDS Security Group (MySQL Port 3306)
 # --------------------------------------------------
 resource "aws_security_group" "rds" {
   name        = "${var.cluster_name}-rds-sg"
-  description = "Allow inbound PostgreSQL traffic from VPC (EKS nodes)"
+  description = "Allow inbound MySQL traffic from VPC (EKS nodes)"
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    description = "PostgreSQL access from inside VPC"
-    from_port   = 5432
-    to_port     = 5432
+    description = "MySQL access from inside VPC"
+    from_port   = 3306
+    to_port     = 3306
     protocol    = "tcp"
     cidr_blocks = [aws_vpc.main.cidr_block]
   }
@@ -79,19 +79,20 @@ resource "aws_security_group" "rds" {
 }
 
 # --------------------------------------------------
-# AWS RDS PostgreSQL Instance
+# AWS RDS MySQL Instance
 # --------------------------------------------------
-resource "aws_db_instance" "postgres" {
-  identifier             = "${var.cluster_name}-postgres"
-  engine                 = "postgres"
-  engine_version         = "18.3"
+resource "aws_db_instance" "mysql" {
+  identifier             = "${var.cluster_name}-mysql"
+  engine                 = "mysql"
+  engine_version         = "8.0.46"
   instance_class         = "db.t3.micro"
   allocated_storage      = 20
   max_allocated_storage  = 50
   storage_type           = "gp3"
   db_name                = "gmz_tasks_db"
-  username               = "postgresadmin"
+  username               = "admin"
   password               = random_password.db_password.result
+  port                   = 3306
   db_subnet_group_name   = aws_db_subnet_group.rds.name
   vpc_security_group_ids = [aws_security_group.rds.id]
   publicly_accessible    = false
@@ -99,6 +100,6 @@ resource "aws_db_instance" "postgres" {
   deletion_protection    = false
 
   tags = {
-    Name = "${var.cluster_name}-postgres"
+    Name = "${var.cluster_name}-mysql"
   }
 }

@@ -19,8 +19,8 @@ output "load_balancer_hostname" {
 }
 
 output "rds_endpoint" {
-  description = "The connection endpoint for the RDS PostgreSQL instance"
-  value       = aws_db_instance.postgres.endpoint
+  description = "The connection endpoint for the RDS MySQL instance"
+  value       = aws_db_instance.mysql.endpoint
 }
 
 output "secrets_manager_secret_name" {
