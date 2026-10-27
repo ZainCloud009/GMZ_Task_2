@@ -1,4 +1,4 @@
-name: Build, Push to Docker Hub and Deploy to AWS EKS
+name: Build, Push to Docker Hub and Deploy to AWS EKS (via Infisical)
 
 on:
   push:
@@ -17,23 +17,16 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      # Fetch secrets dynamically from Infisical Secret Manager
+      - name: Fetch Secrets from Infisical
+        uses: Infisical/secrets-action@v1
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: eu-north-1
-
-      # Fetch Docker Hub credentials dynamically from AWS Secrets Manager
-      - name: Fetch Docker Credentials from AWS Secrets Manager
-        run: |
-          echo "Fetching Docker Hub credentials from AWS Secrets Manager..."
-          SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id gmz-cicd-docker-credentials --region eu-north-1 --query SecretString --output text)
-          DOCKER_USER=$(echo "$SECRET_JSON" | jq -r '.DOCKER_USERNAME // .username')
-          DOCKER_PASS=$(echo "$SECRET_JSON" | jq -r '.DOCKER_PASSWORD // .password')
-          echo "::add-mask::$DOCKER_PASS"
-          echo "DOCKER_USERNAME=$DOCKER_USER" >> $GITHUB_ENV
-          echo "DOCKER_PASSWORD=$DOCKER_PASS" >> $GITHUB_ENV
+          method: universal-auth
+          client-id: ${{ secrets.INFISICAL_CLIENT_ID }}
+          client-secret: ${{ secrets.INFISICAL_CLIENT_SECRET }}
+          project-slug: "secret-management"
+          env-slug: "prod"
+          domain: "https://app.infisical.com"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -63,6 +56,17 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      # Fetch secrets from Infisical (Docker & DB Credentials)
+      - name: Fetch Secrets from Infisical
+        uses: Infisical/secrets-action@v1
+        with:
+          method: universal-auth
+          client-id: ${{ secrets.INFISICAL_CLIENT_ID }}
+          client-secret: ${{ secrets.INFISICAL_CLIENT_SECRET }}
+          project-slug: "secret-management"
+          env-slug: "prod"
+          domain: "https://app.infisical.com"
+
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -70,17 +74,23 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-north-1
 
-      # Fetch Docker Hub credentials dynamically from AWS Secrets Manager
-      - name: Fetch Docker Credentials from AWS Secrets Manager
-        run: |
-          SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id gmz-cicd-docker-credentials --region eu-north-1 --query SecretString --output text)
-          DOCKER_USER=$(echo "$SECRET_JSON" | jq -r '.DOCKER_USERNAME // .username')
-          echo "DOCKER_USERNAME=$DOCKER_USER" >> $GITHUB_ENV
-
       - name: Update Kubeconfig for EKS
         run: |
           echo "Connecting to EKS cluster gmz-k8s-cluster in eu-north-1..."
           aws eks update-kubeconfig --region eu-north-1 --name gmz-k8s-cluster
+
+      # Sync Database Credentials from Infisical directly into Kubernetes Secret
+      - name: Sync Database Credentials from Infisical to Kubernetes Secret
+        run: |
+          echo "Syncing Infisical DB credentials to Kubernetes Secret gmz-db-credentials..."
+          kubectl create secret generic gmz-db-credentials \
+            --from-literal=DB_ENGINE="${{ env.DB_ENGINE }}" \
+            --from-literal=DB_HOST="${{ env.DB_HOST }}" \
+            --from-literal=DB_PORT="${{ env.DB_PORT }}" \
+            --from-literal=DB_USER="${{ env.DB_USER }}" \
+            --from-literal=DB_PASSWORD="${{ env.DB_PASSWORD }}" \
+            --from-literal=DB_NAME="${{ env.DB_NAME }}" \
+            --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Trigger Rolling Update on EKS
         run: |
