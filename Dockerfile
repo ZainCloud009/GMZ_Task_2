@@ -1,5 +1,5 @@
-# Lightweight Node.js 20 base image
-FROM node:20-alpine
+# Lightweight Node.js 22 LTS base image (supports New Relic APM v14+)
+FROM node:22-alpine
 
 # Working directory inside container
 WORKDIR /app

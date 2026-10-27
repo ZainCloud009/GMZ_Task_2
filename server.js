@@ -1,6 +1,16 @@
 // Load environment variables from .env file (if running locally or on server)
 require('dotenv').config();
 
+// Load New Relic APM Agent (must be loaded before all other modules)
+if (process.env.NEW_RELIC_LICENSE_KEY) {
+  try {
+    require('newrelic');
+    console.log('[New Relic] APM Agent initialized successfully for app: GMZ-Health-App-Production');
+  } catch (err) {
+    console.warn('[New Relic] Could not initialize APM Agent:', err.message);
+  }
+}
+
 const express = require('express');
 const path = require('path');
 const os = require('os');

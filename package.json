@@ -12,6 +12,7 @@
     "express": "^4.19.2",
     "http-proxy-middleware": "^4.2.1",
     "mysql2": "^3.24.6",
+    "newrelic": "^14.9.0",
     "pg": "^8.23.1"
   }
 }

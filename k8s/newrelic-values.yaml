@@ -1,0 +1,28 @@
+global:
+  licenseKey: "DBB9F92448CF0A7C89FD1934AAB4248C131EDCE2569881D03D29833CD54F87CF"
+  cluster: "gmz-k8s-cluster"
+  lowDataMode: true
+
+infrastructure:
+  enabled: true
+
+prometheus:
+  enabled: false
+
+ksm:
+  enabled: true
+
+kubeEvents:
+  enabled: true
+
+logging:
+  enabled: true
+
+webhook:
+  enabled: false
+
+pixie:
+  enabled: false
+
+"newrelic-pixie":
+  enabled: false
