@@ -24,7 +24,7 @@ jobs:
           method: "universal"
           client-id: ${{ secrets.INFISICAL_CLIENT_ID }}
           client-secret: ${{ secrets.INFISICAL_CLIENT_SECRET }}
-          project-slug: "secret-management"
+          project-id: "5f0af300-89f2-4e9a-8dd2-996e19890040"
           env-slug: "prod"
           domain: "https://app.infisical.com"
 
@@ -63,7 +63,7 @@ jobs:
           method: "universal"
           client-id: ${{ secrets.INFISICAL_CLIENT_ID }}
           client-secret: ${{ secrets.INFISICAL_CLIENT_SECRET }}
-          project-slug: "secret-management"
+          project-id: "5f0af300-89f2-4e9a-8dd2-996e19890040"
           env-slug: "prod"
           domain: "https://app.infisical.com"
 
