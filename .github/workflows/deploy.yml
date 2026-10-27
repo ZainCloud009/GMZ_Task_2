@@ -19,7 +19,7 @@ jobs:
 
       # Fetch secrets dynamically from Infisical Secret Manager
       - name: Fetch Secrets from Infisical
-        uses: Infisical/secrets-action@v1
+        uses: Infisical/secrets-action@v1.0.18
         with:
           method: universal-auth
           client-id: ${{ secrets.INFISICAL_CLIENT_ID }}
@@ -58,7 +58,7 @@ jobs:
 
       # Fetch secrets from Infisical (Docker & DB Credentials)
       - name: Fetch Secrets from Infisical
-        uses: Infisical/secrets-action@v1
+        uses: Infisical/secrets-action@v1.0.18
         with:
           method: universal-auth
           client-id: ${{ secrets.INFISICAL_CLIENT_ID }}
