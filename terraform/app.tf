@@ -139,7 +139,6 @@ resource "kubernetes_deployment_v1" "health_app" {
   depends_on = [
     aws_eks_node_group.main,
     aws_db_instance.mysql,
-    aws_secretsmanager_secret_version.db_secret_val,
     kubernetes_secret_v1.db_credentials
   ]
 }

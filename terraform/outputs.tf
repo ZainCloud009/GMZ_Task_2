@@ -23,7 +23,23 @@ output "rds_endpoint" {
   value       = aws_db_instance.mysql.endpoint
 }
 
-output "secrets_manager_secret_name" {
-  description = "Name of the secret in AWS Secrets Manager"
-  value       = aws_secretsmanager_secret.db_secret.name
+output "rds_hostname" {
+  description = "Hostname of RDS MySQL instance (for DB_HOST in Infisical)"
+  value       = aws_db_instance.mysql.address
+}
+
+output "rds_password" {
+  description = "Database master password (for DB_PASSWORD in Infisical)"
+  value       = random_password.db_password.result
+  sensitive   = true
+}
+
+output "rds_username" {
+  description = "Database master user (for DB_USER in Infisical)"
+  value       = aws_db_instance.mysql.username
+}
+
+output "rds_dbname" {
+  description = "Database name (for DB_NAME in Infisical)"
+  value       = aws_db_instance.mysql.db_name
 }

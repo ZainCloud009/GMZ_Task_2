@@ -8,35 +8,6 @@ resource "random_password" "db_password" {
 }
 
 # --------------------------------------------------
-# AWS Secrets Manager Secret
-# --------------------------------------------------
-resource "aws_secretsmanager_secret" "db_secret" {
-  name                    = "${var.cluster_name}-rds-credentials"
-  description             = "Database credentials for GMZ Health & Task App on AWS EKS"
-  recovery_window_in_days = 0 # Immediate deletion on destroy to prevent re-creation lockouts
-
-  tags = {
-    Environment = "production"
-    ManagedBy   = "terraform"
-  }
-}
-
-# --------------------------------------------------
-# Secret Value (JSON with full connection info)
-# --------------------------------------------------
-resource "aws_secretsmanager_secret_version" "db_secret_val" {
-  secret_id = aws_secretsmanager_secret.db_secret.id
-  secret_string = jsonencode({
-    engine   = "mysql"
-    host     = aws_db_instance.mysql.address
-    port     = aws_db_instance.mysql.port
-    dbname   = aws_db_instance.mysql.db_name
-    username = aws_db_instance.mysql.username
-    password = random_password.db_password.result
-  })
-}
-
-# --------------------------------------------------
 # RDS DB Subnet Group (Using multi-AZ public subnets)
 # --------------------------------------------------
 resource "aws_db_subnet_group" "rds" {
