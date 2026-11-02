@@ -22,6 +22,30 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // --------------------------------------------------
+// Monitoring Dashboard (Grafana) Reverse Proxy
+// --------------------------------------------------
+// Redirect /grafana (exact match without slash) to /grafana/
+app.get(/^\/grafana$/, (req, res) => {
+  res.redirect(301, '/grafana/');
+});
+
+// Proxy /grafana to Grafana in monitoring namespace (placed BEFORE express.json to preserve POST body)
+app.use(
+  '/grafana',
+  createProxyMiddleware({
+    target: process.env.GRAFANA_SERVICE_URL || 'http://prometheus-grafana.monitoring.svc.cluster.local:80',
+    changeOrigin: true,
+    ws: true,
+    on: {
+      proxyReq: (proxyReq, req, res) => {
+        proxyReq.setHeader('X-Forwarded-Proto', 'https');
+        proxyReq.setHeader('X-Forwarded-Host', req.headers.host || 'iamzain.space');
+      }
+    }
+  })
+);
+
+// --------------------------------------------------
 // Database Manager (phpMyAdmin) Reverse Proxy
 // --------------------------------------------------
 // Redirect /phpmyadmin (exact match without slash) to /phpmyadmin/
