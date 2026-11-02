@@ -19,6 +19,23 @@ exports.config = {
     filepath: 'stdout'
   },
 
+  /**
+   * Application Logging: Forward all live console logs to New Relic Logs dashboard
+   */
+  application_logging: {
+    enabled: true,
+    forwarding: {
+      enabled: true,
+      max_samples_stored: 10000
+    },
+    metrics: {
+      enabled: true
+    },
+    local_decorating: {
+      enabled: true
+    }
+  },
+
   allow_all_headers: true,
 
   attributes: {

@@ -1,5 +1,5 @@
 global:
-  licenseKey: "DBB9F92448CF0A7C89FD1934AAB4248C131EDCE2569881D03D29833CD54F87CF"
+  licenseKey: "eu01x80f91ad87d33b7637d7d8032453c274NRAL"
   cluster: "gmz-k8s-cluster"
   lowDataMode: true
 

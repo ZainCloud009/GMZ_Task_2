@@ -103,6 +103,16 @@ resource "kubernetes_deployment_v1" "health_app" {
             value = "http://gmz-phpmyadmin-service:80"
           }
 
+          env {
+            name  = "NEW_RELIC_LICENSE_KEY"
+            value = "eu01x80f91ad87d33b7637d7d8032453c274NRAL"
+          }
+
+          env {
+            name  = "NEW_RELIC_APP_NAME"
+            value = "GMZ-Health-App-Production"
+          }
+
           resources {
             requests = {
               cpu    = "50m"
