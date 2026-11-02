@@ -1,0 +1,72 @@
+# --------------------------------------------------
+# Lightweight Prometheus + Grafana Configuration for AWS EKS (t3.small)
+# --------------------------------------------------
+
+# Disable Alertmanager to conserve cluster memory on small worker nodes
+alertmanager:
+  enabled: false
+
+# Grafana Dashboard Configuration
+grafana:
+  enabled: true
+  adminPassword: "admin"
+  defaultDashboardsEnabled: true
+  defaultDashboardsTimezone: "browser"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 512Mi
+  livenessProbe:
+    httpGet:
+      path: /api/health
+      port: 3000
+    initialDelaySeconds: 300
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 10
+  readinessProbe:
+    httpGet:
+      path: /api/health
+      port: 3000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 10
+
+# Prometheus Server Configuration
+prometheus:
+  enabled: true
+  prometheusSpec:
+    retention: 24h
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 300m
+        memory: 512Mi
+
+# Node Exporter (DaemonSet on every worker node for hardware metrics)
+nodeExporter:
+  enabled: true
+  resources:
+    requests:
+      cpu: 20m
+      memory: 30Mi
+    limits:
+      cpu: 50m
+      memory: 64Mi
+
+# Kube State Metrics (Gathers Kubernetes object states: pods, deployments, etc.)
+kubeStateMetrics:
+  enabled: true
+  resources:
+    requests:
+      cpu: 20m
+      memory: 50Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
