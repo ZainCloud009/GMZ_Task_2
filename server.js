@@ -21,21 +21,19 @@ const { createProxyMiddleware } = require('http-proxy-middleware');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Trust AWS ELB SSL termination proxy headers
+app.set('trust proxy', true);
+
 // --------------------------------------------------
 // Monitoring Dashboard (Grafana) Reverse Proxy
 // --------------------------------------------------
-// Redirect /grafana (exact match without slash) to /grafana/
-app.get(/^\/grafana$/, (req, res) => {
-  res.redirect(301, '/grafana/');
-});
-
-// Proxy /grafana to Grafana in monitoring namespace (placed BEFORE express.json to preserve POST body)
+// Proxy /grafana and /grafana/* to Grafana in monitoring namespace (placed BEFORE express.json to preserve POST body)
 app.use(
-  '/grafana',
   createProxyMiddleware({
     target: process.env.GRAFANA_SERVICE_URL || 'http://prometheus-grafana.monitoring.svc.cluster.local:80',
     changeOrigin: true,
     ws: true,
+    pathFilter: '/grafana',
     on: {
       proxyReq: (proxyReq, req, res) => {
         proxyReq.setHeader('X-Forwarded-Proto', 'https');
