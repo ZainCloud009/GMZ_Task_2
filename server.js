@@ -38,6 +38,9 @@ app.use(
       proxyReq: (proxyReq, req, res) => {
         proxyReq.setHeader('X-Forwarded-Proto', 'https');
         proxyReq.setHeader('X-Forwarded-Host', req.headers.host || 'iamzain.space');
+      },
+      proxyRes: (proxyRes, req, res) => {
+        proxyRes.headers['access-control-allow-origin'] = '*';
       }
     }
   })

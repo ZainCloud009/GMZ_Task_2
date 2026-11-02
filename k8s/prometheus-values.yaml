@@ -15,7 +15,7 @@ grafana:
   grafana.ini:
     server:
       domain: iamzain.space
-      root_url: "%(protocol)s://%(domain)s/grafana/"
+      root_url: "https://iamzain.space/grafana/"
       serve_from_sub_path: true
   resources:
     requests:
